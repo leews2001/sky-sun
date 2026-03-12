@@ -57,6 +57,10 @@ export function saveDataTextureAsPNG(texture: THREE.DataTexture, filename = 'noi
   const height = texture.image.height;
   const data = texture.image.data;
 
+  if (!data) {
+    throw new Error('Texture data is null');
+  }
+
   // Create a canvas
   const canvas = document.createElement('canvas');
   canvas.width = width;
@@ -164,4 +168,13 @@ export function generate3DNoiseTexture(): THREE.Data3DTexture {
     texture.generateMipmaps = true;
     texture.needsUpdate = true;
     return texture;
+}
+
+
+// TextureUtils.ts
+export function createFallbackTexture(): THREE.Texture {
+  const data = new Uint8Array([255, 255, 255, 255]);
+  const tex = new THREE.DataTexture(data, 1, 1);
+  tex.needsUpdate = true;
+  return tex;
 }

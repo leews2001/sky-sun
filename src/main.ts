@@ -1,24 +1,51 @@
+const Renderer_Option:string = 'sky-sun';
+
 import './style.css'
-import typescriptLogo from './typescript.svg'
-import viteLogo from '/vite.svg'
-import { setupCounter } from './counter.ts'
+import { RenderSkySun } from './ts/renderSkySun';
 
-document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-  <div>
-    <a href="https://vite.dev" target="_blank">
-      <img src="${viteLogo}" class="logo" alt="Vite logo" />
-    </a>
-    <a href="https://www.typescriptlang.org/" target="_blank">
-      <img src="${typescriptLogo}" class="logo vanilla" alt="TypeScript logo" />
-    </a>
-    <h1>Vite + TypeScript</h1>
-    <div class="card">
-      <button id="counter" type="button"></button>
-    </div>
-    <p class="read-the-docs">
-      Click on the Vite and TypeScript logos to learn more
-    </p>
-  </div>
-`
 
-setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
+
+async function main() {
+  
+  const canvas = document.getElementById('webgl') as HTMLCanvasElement;
+  
+  if (!canvas) {
+    throw new Error('Canvas not found');
+  }
+
+  // Resize canvas to window size
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+ 
+
+  let renderer: RenderSkySun;
+
+  if (Renderer_Option === 'sky-sun') {
+
+    const helpMenu = document.getElementById("help-menu-sky") as HTMLElement;
+    if (!helpMenu) throw new Error('helpMenu not found');
+
+    renderer = await RenderSkySun.init(canvas, helpMenu );
+  
+  } else {
+    throw new Error("Invalid Renderer_Option");
+  }
+
+ 
+  function animate() { 
+    renderer.render();
+    requestAnimationFrame(animate);
+  }
+
+  animate();
+  
+  window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    renderer.resize(canvas.width, canvas.height);
+  });
+ 
+} // <<-- async function main() 
+
+main();
+

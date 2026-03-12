@@ -33,18 +33,20 @@ function toggleFlag(flag: number) {
 
 export class RenderSkySun {
     private gui: GUI = new GUI();
-    private guiSettings:{
-            bEnableFlare: boolean;
-            bEnableACES: boolean;
-            CamPitch: number;
-            CamYaw: number;
-            CamRoll: number;
-            bEnableMultipleScattering: boolean;
-            EyeAttitude: number;
-            SunElevationDeg: number;
-            CameraFov: number;
-            AerosolTurbidity: number;
+    private guiSettings!: {
+        bEnableFlare: boolean;
+        bEnableACES: boolean;
+        CamPitch: number;
+        CamYaw: number;
+        CamRoll: number;
+        bEnableMultipleScattering: boolean;
+        EyeAttitude: number;
+        SunElevationDeg: number;
+        CameraFov: number;
+        AerosolTurbidity: number;
     };
+
+    
     private prevRoll: number = 0.;
     private prevPitch: number = 0.;
     private prevYaw: number = 0.;
@@ -63,7 +65,7 @@ export class RenderSkySun {
     private scene: THREE.Scene;
     private quad: THREE.Mesh;
 
-    private clock = new THREE.Clock();
+    private timer = new THREE.Timer();
 
     private passes = new RenderManager();
 
@@ -93,7 +95,7 @@ export class RenderSkySun {
         window.addEventListener('keydown', (e) => {
             const key = e.key.toLowerCase();
 
-            console.log("key: ", key);
+            //console.log("key: ", key);
 
             this.keysPressed[key] = true;
             this.anyKeysPressed = true;
@@ -119,30 +121,31 @@ export class RenderSkySun {
      * @param canvas The HTML canvas element to render on.
      * @returns A promise that resolves to the RenderSkySun instance.
      */
-    static async init(
-        canvas: HTMLCanvasElement, helpMenu: HTMLElement): Promise<RenderSkySun> {
+    static async init( canvas: HTMLCanvasElement, helpMenu: HTMLElement): Promise<RenderSkySun> 
+    {
         
+        console.log('>> Initializing RenderSkySun...');
 
         const instance = new RenderSkySun(canvas, helpMenu);
         await instance.passes.init(canvas.width, canvas.height, canvas);
 
-
+        console.log('>> RenderSkySun 01');
         setupKeyControls((value) => {
             instance.passes.materials.skyImage.uniforms.u_keyPressed.value = value;
         });
 
         // Assume this uniform exists in your shader
-        const skyScatteringUniforms = instance.passes.materials.skyScattering.uniforms;
+        const scatteringUniforms = instance.passes.materials.scattering.uniforms;
         const transmittanceUniforms = instance.passes.materials.transmittance.uniforms;
         const skyImageUniforms = instance.passes.materials.skyImage.uniforms;
         const bokehImageUniforms = instance.passes.materials.bokehImage.uniforms;
 
         // Set initial value for safety
 
-        skyScatteringUniforms.fEyeAttitude= skyScatteringUniforms.fEyeAttitude || { value: 0.05 };
-        skyScatteringUniforms.fAerosolTurbidity =  skyScatteringUniforms.fAerosolTurbidity || { value: 1.0 };
-        skyScatteringUniforms.bEnableMultipleScattering = skyScatteringUniforms.bEnableMultipleScattering|| { value: true };
-        skyScatteringUniforms.fSunElevationDeg = skyScatteringUniforms.fSunElevationDeg || { value: 0.0 };
+        scatteringUniforms.fEyeAttitude= scatteringUniforms.fEyeAttitude || { value: 0.05 };
+        scatteringUniforms.fAerosolTurbidity =  scatteringUniforms.fAerosolTurbidity || { value: 1.0 };
+        scatteringUniforms.bEnableMultipleScattering = scatteringUniforms.bEnableMultipleScattering|| { value: true };
+        scatteringUniforms.fSunElevationDeg = scatteringUniforms.fSunElevationDeg || { value: 0.0 };
 
         transmittanceUniforms.fAerosolTurbidity = transmittanceUniforms.fAerosolTurbidity || { value: 1.0 };
 
@@ -160,13 +163,13 @@ export class RenderSkySun {
         instance.guiSettings = {
             bEnableFlare: skyImageUniforms.bEnableFlare.value,
             bEnableACES: skyImageUniforms.bEnableACES.value,
-            bEnableMultipleScattering: skyScatteringUniforms.bEnableMultipleScattering.value,
+            bEnableMultipleScattering: scatteringUniforms.bEnableMultipleScattering.value,
             CamPitch: 0.,
             CamYaw: 0.,
             CamRoll: 0.0,
             CameraFov: skyImageUniforms.fCameraFov.value || 80.0,
-            EyeAttitude: skyScatteringUniforms.fEyeAttitude.value || 0.05,
-            SunElevationDeg: skyScatteringUniforms.fSunElevationDeg?.value || 0.0,
+            EyeAttitude: scatteringUniforms.fEyeAttitude.value || 0.05,
+            SunElevationDeg: scatteringUniforms.fSunElevationDeg?.value || 0.0,
             AerosolTurbidity: transmittanceUniforms.fAerosolTurbidity.value || 1.0
 
         };
@@ -189,7 +192,7 @@ export class RenderSkySun {
         instance.gui.add(instance.guiSettings, 'bEnableMultipleScattering')
             .name('M.Ssattering')
             .onChange((val: boolean) => {
-                skyScatteringUniforms.bEnableMultipleScattering.value = val;
+                scatteringUniforms.bEnableMultipleScattering.value = val;
             });
 
         instance.gui.add(instance.guiSettings, 'CamRoll', -180.0, 180.0, 0.1).decimals(1)
@@ -253,7 +256,7 @@ export class RenderSkySun {
             .name('Attitude')
             .listen()
             .onChange((val: number) => {
-                skyScatteringUniforms.fEyeAttitude.value = val;
+                scatteringUniforms.fEyeAttitude.value = val;
                 skyImageUniforms.fEyeAttitude.value = val;
                 instance.movController.camYPos = val;
                 //instance.guiSettings.EyeAttitude = val;
@@ -264,7 +267,7 @@ export class RenderSkySun {
             .listen()
             .onChange((val: number) => { 
                 skyImageUniforms.fSunElevationDeg.value = val;
-                skyScatteringUniforms.fSunElevationDeg.value = val;
+                scatteringUniforms.fSunElevationDeg.value = val;
                 instance.sunElevationDeg = val;
             });
 
@@ -274,12 +277,13 @@ export class RenderSkySun {
             .onChange((val: number) => {
                  
                 transmittanceUniforms.fAerosolTurbidity.value = val;
-                skyScatteringUniforms.fAerosolTurbidity.value = val;
+                scatteringUniforms.fAerosolTurbidity.value = val;
                 skyImageUniforms.fAerosolTurbidity.value = val;
                 instance.aerosolTurbidity = val;
                 
             });
 
+        console.log('<< Initializing RenderSkySun...');
         return instance; 
     } // init <<<----
 
@@ -301,40 +305,13 @@ export class RenderSkySun {
         this.quad.material = this.passes.materials.bokehImage;
     }
 
-
-      private updateEnvironmentParams(dt: number) {
-        const sunELDelta = (this.keysPressed["'"] ? 1 : 0) - (this.keysPressed["/"] ? 1 : 0);
-        const aerosolDelta = (this.keysPressed[";"] ? 1 : 0) - (this.keysPressed["."] ? 1 : 0);
-
-      
-        let elStep = 1.0;
-        if (this.sunElevationDeg > 3.0) elStep = 5.0;
-        else if(this.sunElevationDeg > 10.0) elStep = 20.0;
-        else if(this.sunElevationDeg > 20.0) elStep = 50.0;
-        else if(this.sunElevationDeg > 40.0) elStep = 100.0;
-
-        this.sunElevationDeg += sunELDelta * elStep * dt; 
-
-        this.sunElevationDeg = Math.min(89.0, Math.max(-20.0, this.sunElevationDeg)); // clamp
-        this.guiSettings.SunElevationDeg = this.sunElevationDeg;
-        
-        this.aerosolTurbidity += aerosolDelta * 2.0 * dt;
-        this.aerosolTurbidity = Math.min(30.0, Math.max(0.1, this.aerosolTurbidity)); // clamp
-        this.guiSettings.AerosolTurbidity = this.aerosolTurbidity;
-         
-
-        this.passes.materials.skyScattering.uniforms.fSunElevationDeg.value = this.sunElevationDeg;
-        this.passes.materials.skyScattering.uniforms.fAerosolTurbidity.value = this.aerosolTurbidity;
-        this.passes.materials.transmittance.uniforms.fAerosolTurbidity.value = this.aerosolTurbidity;
-        this.passes.materials.skyImage.uniforms.fAerosolTurbidity.value = this.aerosolTurbidity;
-        this.passes.materials.skyImage.uniforms.fSunElevationDeg.value = this.sunElevationDeg;
-
-        return;
-    }
+ 
 
         /** Update camera orientation based on keypresses */
     // dt: number, delta time since last frame
-    private updateCameraOrientation(dt: number) {
+    private updateCameraOrientation(dt: number) 
+    {
+
         const pitchDelta = (this.keysPressed["w"] ? 1 : 0) - (this.keysPressed["s"] ? 1 : 0);
         const yawDelta   = (this.keysPressed["d"] ? 1 : 0) - (this.keysPressed["a"] ? 1 : 0);
         const rollDelta  = (this.keysPressed["q"] ? 1 : 0) - (this.keysPressed["e"] ? 1 : 0);
@@ -363,7 +340,7 @@ export class RenderSkySun {
  
 
         
-        this.passes.materials.skyScattering.uniforms.fEyeAttitude.value = this.movController.camYPos;
+        this.passes.materials.scattering.uniforms.fEyeAttitude.value = this.movController.camYPos;
 
         this.passes.materials.skyImage.uniforms.fCameraFov.value = this.movController.camFOV;
         this.passes.materials.skyImage.uniforms.fEyeAttitude.value = this.movController.camYPos;
@@ -380,6 +357,37 @@ export class RenderSkySun {
         return;
     }
 
+
+     private updateEnvironmentParams(dt: number) {
+        const sunELDelta = (this.keysPressed["'"] ? 1 : 0) - (this.keysPressed["/"] ? 1 : 0);
+        const aerosolDelta = (this.keysPressed[";"] ? 1 : 0) - (this.keysPressed["."] ? 1 : 0);
+
+      
+        let elStep = 1.0;
+        if (this.sunElevationDeg > 3.0) elStep = 5.0;
+        else if(this.sunElevationDeg > 10.0) elStep = 20.0;
+        else if(this.sunElevationDeg > 20.0) elStep = 50.0;
+        else if(this.sunElevationDeg > 40.0) elStep = 100.0;
+
+        this.sunElevationDeg += sunELDelta * elStep * dt; 
+
+        this.sunElevationDeg = Math.min(89.0, Math.max(-20.0, this.sunElevationDeg)); // clamp
+        this.guiSettings.SunElevationDeg = this.sunElevationDeg;
+        
+        this.aerosolTurbidity += aerosolDelta * 2.0 * dt;
+        this.aerosolTurbidity = Math.min(30.0, Math.max(0.1, this.aerosolTurbidity)); // clamp
+        this.guiSettings.AerosolTurbidity = this.aerosolTurbidity;
+         
+
+        this.passes.materials.scattering.uniforms.fSunElevationDeg.value = this.sunElevationDeg;
+        this.passes.materials.scattering.uniforms.fAerosolTurbidity.value = this.aerosolTurbidity;
+        this.passes.materials.transmittance.uniforms.fAerosolTurbidity.value = this.aerosolTurbidity;
+        this.passes.materials.skyImage.uniforms.fAerosolTurbidity.value = this.aerosolTurbidity;
+        this.passes.materials.skyImage.uniforms.fSunElevationDeg.value = this.sunElevationDeg;
+
+        return;
+    }
+
     //------====== PUBLIC
 
     /**
@@ -388,25 +396,26 @@ export class RenderSkySun {
      */
     public render() {
         // this.stats.begin();
+        this.timer.update();
 
         if( this.anyKeysPressed) {
-            const dt = this.clock.getDelta();   // << Use delta for smooth motion
+            const dt = this.timer.getDelta();   // << Use delta for smooth motion
             this.updateCameraOrientation(dt);    // << Update orientation
             this.updateEnvironmentParams(dt);      // << Update time of day
         }
 
 
-        const elapsed = this.clock.getElapsedTime();
-        this.passes.materials.skyScattering.uniforms.iTime.value = elapsed;
+        const elapsed = this.timer.getElapsed();
+        this.passes.materials.scattering.uniforms.iTime.value = elapsed;
         this.passes.materials.skyImage.uniforms.iTime.value = elapsed;
 
         this.renderToTarget(this.passes.materials.transmittance, this.passes.renderTargets.transmittance!);
-        this.renderToTarget(this.passes.materials.skyScattering, this.passes.renderTargets.skyScattering!);
+        this.renderToTarget(this.passes.materials.scattering, this.passes.renderTargets.scattering!);
         this.renderToTarget(this.passes.materials.skyImage, this.passes.renderTargets.skyImage!);
 
         // explicitly set the quad’s material before rendering the scene,
         // This ensures the quad isn’t left with an intermediate material 
-        // (like transmittance or skyScattering) after an offscreen render pass.
+        // (like transmittance or ing) after an offscreen render pass.
         this.setFinalDisplayMaterial();
 
         this.renderer.render(this.scene, this.camera);
@@ -425,6 +434,8 @@ export class RenderSkySun {
         this.passes.resize(width, height);
         return;
     }
+
+   
 
 
 }

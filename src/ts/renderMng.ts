@@ -4,9 +4,9 @@ import * as THREE from 'three';
 import { createRenderTarget, createShaderMaterial, injectIncludes, loadShader } from './utils/GLSUtils';
 
 
-import { loadRGBA64DitherTexture} from './utils/TextureUtils';
+import { loadRGBA64DitherTexture, createFallbackTexture} from './utils/TextureUtils';
 
-const RT_KEYS = ['transmittance', 'skyScattering', 'skyImage'] as const;
+const RT_KEYS = ['transmittance', 'scattering', 'skyImage'] as const;
 type RenderTargetName = typeof RT_KEYS[number];
 
 
@@ -34,30 +34,35 @@ export class RenderManager {
      */
     async init(width: number, height: number, canvas: HTMLCanvasElement): Promise<void> {
 
+        console.log('>> RenderManager init');
         this.canvas = canvas;
 
         const {  lensDirtTex512 } = 
             await RenderManager.loadTextures();
-
+        console.log('>> RenderManager init - Textures Loaded');
         const [
             commonGLSL,
             transmittanceGLSL,
-            skyScatteringGLSL,
+            scatteringGLSL,
             skyImageGLSL,
             bokehImageGLSL,
         ] = await Promise.all([
-            loadShader('../shaders/common.glsl'),
-            loadShader('../shaders/transmittance.frag.glsl'),
-            loadShader('../shaders/skyScattering.frag.glsl'),
-            loadShader('../shaders/skyImage.frag.glsl'),
-            loadShader('../shaders/bokehImage.frag.glsl'),
+            loadShader('src/shaders/sky-sun-utils.glsl'),
+            loadShader('src/shaders/transmittance.frag.glsl'),
+            loadShader('src/shaders/scattering.frag.glsl'),
+            loadShader('src/shaders/skyImage.frag.glsl'),
+            loadShader('src/shaders/bokehImage.frag.glsl'),
         ]);
+        console.log('>> RenderManager init - Shaders Loaded');
 
-        const includeMap = { 'common.glsl': commonGLSL };
+        const includeMap = { 'sky-sun-utils.glsl': commonGLSL };
 
         // Transmittance
         this.materials.transmittance = 
-            createShaderMaterial(width, height, 
+            createShaderMaterial(
+                'Transmittance',
+                width, 
+                height, 
                 injectIncludes(transmittanceGLSL, includeMap),
                 { fAerosolTurbidity: { value: 1.0 } }
             );
@@ -65,9 +70,10 @@ export class RenderManager {
         this.renderTargets.transmittance = createRenderTarget(width, height);
 
         // Sky Texture
-        this.materials.skyScattering = 
+        this.materials.scattering = 
             createShaderMaterial(
-                width, height, injectIncludes(skyScatteringGLSL, includeMap),
+                'Scattering',
+                width, height, injectIncludes(scatteringGLSL, includeMap),
                 { 
                     bEnableMultipleScattering: { value: true },
                     fEyeAttitude: {value: 0.05}, 
@@ -75,11 +81,12 @@ export class RenderManager {
                     fAerosolTurbidity: { value: 1.0 } }
             );
 
-        this.materials.skyScattering.uniforms.iChannel0.value = this.renderTargets.transmittance.texture;
-        this.renderTargets.skyScattering = createRenderTarget(width, height);
+        this.materials.scattering.uniforms.iChannel0.value = this.renderTargets.transmittance.texture;
+        this.renderTargets.scattering = createRenderTarget(width, height);
 
         // Final Sky Image
         this.materials.skyImage = createShaderMaterial(
+            'SkyImage',
             width, height, injectIncludes(skyImageGLSL, includeMap),
             { 
                 uUVScale: { value: new THREE.Vector2(1.0, 1.0) },
@@ -98,23 +105,23 @@ export class RenderManager {
 
         // Bokeh Image
         this.materials.bokehImage = createShaderMaterial(
-            width, height, injectIncludes(bokehImageGLSL, includeMap),
+            'BokehImage', width, height, injectIncludes(bokehImageGLSL, includeMap),
             { 
                 //iChannel0: { value: this.renderTargets.skyImage.texture },
             }
         );
 
 
-        this.materials.skyImage.uniforms.iChannel0.value = this.renderTargets.skyScattering.texture;
+        this.materials.skyImage.uniforms.iChannel0.value = this.renderTargets.scattering.texture;
         this.materials.skyImage.uniforms.iChannel1.value = this.renderTargets.transmittance.texture;
 
         this.materials.bokehImage.uniforms.iChannel0.value = this.renderTargets.skyImage.texture;
-        // THREE.TextureLoader creates a generic Texture<unknown> object, 
-        // and TypeScript cannot guarantee that the image property is an HTMLImageElement before it is fully loaded.
 
+        // THREE.TextureLoader creates a generic Texture<unknown> object, 
+        // and TypeScript cannot guarantee that the image property is an HTMLImageElement 
+        // before it is fully loaded.
         this.texAspect = (lensDirtTex512.image as HTMLImageElement).width/ (lensDirtTex512.image as HTMLImageElement).height;
         this.updateLensDirtScale(); 
-
 
         // // Keyboard events
         // this.setupEventListeners();
@@ -138,12 +145,31 @@ export class RenderManager {
     }
 
     //#region --- Init Helpers
-    private static async loadTextures(): Promise<{ lensDirtTex512: THREE.Texture }> { 
+    // private static async loadTextures(): Promise<{ lensDirtTex512: THREE.Texture }> { 
 
-        const lensDirtTex512 = await loadRGBA64DitherTexture('/assets/Texturelabs_LensFX_217S_med.jpg');
+    //     const lensDirtTex512 = await loadRGBA64DitherTexture('/assets/textures/Texturelabs_LensFX_217S_med.jpg');
+    //     return { lensDirtTex512 };
+    // }
+
+
+    private static async loadTextures(): Promise<{ lensDirtTex512: THREE.Texture }> 
+    {
+
+        let lensDirtTex512: THREE.Texture;
+
+        try {
+            lensDirtTex512 = await loadRGBA64DitherTexture(
+            '/assets/textures/Texturelabs_LensFX_217S_med.jpg'
+            );
+        } catch (err) {
+            console.warn('Lens dirt texture failed to load, using fallback.', err);
+
+            // simple fallback texture
+            lensDirtTex512 = createFallbackTexture();
+        }
+
         return { lensDirtTex512 };
     }
-
 
     private updateLensDirtScale() {
         const screenAspect = this.canvas.width / this.canvas.height;
