@@ -2,12 +2,29 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>wolf-sky-sun</title>
+    <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <canvas class="webgl"></canvas>
+    <div class="container">
+    <canvas id="webgl"></canvas>
+    <div id="help-menu-sky" class="help-menu hidden">
+      <h1 style="text-align: center; color: yellow; margin-bottom:0px">SKY CONTROLS</h1>
+      <hr>
+      <ul>
+        <li><b>A/D</b> — Yaw</li>
+        <li><b>W/S</b> — Pitch</li>
+        <li><b>Q/E</b> — Roll</li>
+        <li><b>🐁</b> — Click & Drag Sun</li>
+        <li><b>Esc</b> — Toggle This Menu</li>
+        <li><b>H</b> — Toggle Stats Panel</li>
+        <li><b>V</b> — Toggle Vignette</li>
+        <li><b>C</b> — Toggle CRT/VHS Effect</li>
+        <li><b>Z</b> — Toggle Chroma Distort</li>
+      </ul>
+    </div>   
     <script type="module" src="/src/main.ts"></script>
+  </div>
   </body>
 </html>
