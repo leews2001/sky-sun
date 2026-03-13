@@ -103,7 +103,7 @@ button:focus-visible {
   left: 50%;
   transform: translate(-50%, -50%);
   background: rgba(0, 0, 0, 0.7);
-  color: white;
+  color: rgb(255, 221, 0);
   padding-top: 0.1 rem;
   padding-left: 2.2rem;
   padding-right: 2.2rem;
@@ -128,3 +128,59 @@ button:focus-visible {
 
 
  
+/* lil-gui styles */
+
+
+.lil-gui {
+	--name-width: 5em;
+	--width: 180px;
+	--slider-knob-width: 0.33em;
+	--widget-padding: 0 0 0 0.5em;
+	--number-color: rgb(242, 255, 0);
+  --widget-color: rgb(29, 51, 58);
+  --background-color: #02020280; 
+  --input-font-size: 10px !important; /* Adjust the size as needed */
+  --font-size: 10px !important; /* Adjust the size as needed */
+  --font-family: 'Courier New', monospace;
+}
+
+.lil-gui.root {
+	border-bottom-right-radius: 0em;
+	margin: 1em;
+	padding: 0 em;
+	right: 0;
+	top: 0;
+	position: fixed;
+}
+
+.lil-gui input.top{
+	border-top-right-radius: 0.65em;
+}
+
+.lil-gui input.bottom, .lil-gui button.bottom{
+	border-bottom-right-radius: 0.65em;
+}
+
+.lil-gui .controller.option .widget div {
+	width: 9.15em;
+}
+
+.lil-gui .gap{
+	margin-bottom: 2em;
+}
+
+.lil-gui em {
+	color: Orange;
+	font-weight: bold;
+	font-style: small;
+}
+
+.lil-gui big {
+	font-weight: bold;
+	text-transform: uppercase;
+}
+
+
+.lil-gui .controller.string input {
+	font-family: Monospace;
+}
