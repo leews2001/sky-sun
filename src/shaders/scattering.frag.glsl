@@ -23,8 +23,9 @@ uniform vec2 iResolution;
 uniform sampler2D iChannel0; // from Buffer A , Trnsmittance LUT
 
 
-#include "sky-sun-utils.glsl"
- 
+#include "atmosphere.glsl"
+#include "math.glsl"
+
 /**
  *   
  */

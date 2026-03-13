@@ -16,77 +16,15 @@ uniform sampler2D iChannel1; // from Buffer A , Trnsmittance LUT
 uniform sampler2D iChannel2;        // RGBA 1024x512
 uniform vec3 iChannelResolution[3]; // channel resolution (in pixels)
 
-#include "sky-sun-utils.glsl"
-
+#include "atmosphere.glsl"
+#include "noise.glsl"
+#include "math.glsl"
+#include "tonemapping.glsl"
  
 
-// Constants
-const float k = 0.000226; // Gladstone-Dale constant
-const float surfaceP = 101325.0; // Pascal
+#define SUN_STREAK 0 // 0 = disable sun streaks (performance boost, but less "musk-y")
 
 
-// A simple, smooth 3D Value Noise
-float smoothNoise(vec3 p) {
- 
-    vec3 i = floor(p);
-    vec3 f = fract(p);
-    f = f* f;
-    //f = f * f * (3.0 - 2.0 * f); // Hermite interpolation (removes "sand" look)
-
-    // Hash function to get random values at grid corners
-    #define hash(p) fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453123)
-    
-    float n000 = hash(i + vec3(0, 0, 0));
-    float n100 = hash(i + vec3(1, 0, 0));
-    float n010 = hash(i + vec3(0, 1, 0));
-    float n110 = hash(i + vec3(1, 1, 0));
-    float n001 = hash(i + vec3(0, 0, 1));
-    float n101 = hash(i + vec3(1, 0, 1));
-    float n011 = hash(i + vec3(0, 1, 1));
-    float n111 = hash(i + vec3(1, 1, 1));
-
-    return mix(mix(mix(n000, n100, f.x), mix(n010, n110, f.x), f.y),
-               mix(mix(n001, n101, f.x), mix(n011, n111, f.x), f.y), f.z);
-}
-
-float fbm(vec3 p) {
-    float value = 0.0;
-    float amplitude = 1.85;
-    float frequency = 1.73; // Base frequency
-    
-    for (int i = 0; i < 3; i++) { // 3 octaves is usually enough for "detail"
-        value += amplitude * smoothNoise(p * frequency);
-        p *= 2.02;      // Increase frequency for the next octave
-        amplitude *= 0.5; // Decrease influence of finer ripples
-    }
-    return value;
-}
-
-
-
-
-// Standard 3D noise function (you can swap this with your favorite noise)
-float noise(vec3 p) {
-    // ... existing noise implementation or texture lookup ...
-    return fract(sin(dot(p, vec3(12.9898, 78.233, 45.164))) * 43758.5453);
-}
-
-// Get the turbulence "force" at a specific point in space
-vec3 getTurbulence(vec3 pos, float time) {
-    float scale = 0.05; // Size of the shimmering cells
-    float speed = 0.0001;  // How fast the shimmer moves
-    float strength = 0.000055; // Very small! Atmospheric n varies by tiny amounts.
-
-    // Sample noise at different frequencies (Octaves)
-    float n = noise(pos * scale + time * speed)* 2.0 - 1.0;
- 
-    pos.y = pos.y* 1000.;
-    n += noise(pos * scale * 2.0 - time * speed * 0.8) * 0.5;
-    
-    // We want the gradient of the noise (how it changes in space)
-    // To keep it simple, we can just return a small offset vector
-    return vec3(n) * strength;
-}
 
 float getTemperatureGradient(float alt) {
     // 1. Standard Lapse Rate (K/m)
@@ -105,18 +43,13 @@ float getTemperatureGradient(float alt) {
     
     return mirageGrad + standardLapseRate;
 }
-
-const float kRed   = 0.8994; // Bends ~0.6% less
-const float kGreen = 1.000; // Baseline
-const float kBlue  = 1.1007; // Bends ~0.7% more
-
+ 
 
 float getRefractionGradient(float alt, float kFactor) {
    
     // Basic atmosphere constants
     float T = 288.0 - 0.0065 * alt; // Simplified T
-    float P = 101325.0 * exp(-alt / 8400.0);
-    //float n_minus_1 = 0.000226 * (P / T);
+    float P = 101325.0 * exp(-alt / 8400.0); 
     // Adjust n_minus_1 by the wavelength factor
     float n_minus_1 = (0.000226 * kFactor) * (P / T);
 
@@ -140,61 +73,6 @@ float getRefractionGradient(float alt, float kFactor) {
  * @return The refracted ray direction.
  */
  
-vec3 getRefractedDirection(vec3 viewPos, vec3 initialDir, float kFactor) {
-
-    float alt = viewPos.y - EARTH_RADIUS; // km
-
-
-    // 1. Calculate the sine of the angle to the geometric horizon
-    // This accounts for the 'dip' if the camera is high up.
-    float horizonSin = -sqrt(max(0.0, 2.0 * (1000.*EARTH_RADIUS)* (1000.*alt) + 1000.0*(alt * alt))) / (1000.0 * (EARTH_RADIUS + alt));
-    
- 
-    // 2. Define a 'Refraction Window' 
-    // We only care about rays near the horizon or pointing at the ground.
-    // radians(3.0) is about 0.05. We add this to the horizon angle.
-    float upperThreshold = horizonSin + 0.05; 
-    
-    // If the ray is pointing well above the horizon 'haze', skip the march.
-    if (initialDir.y > upperThreshold * .001) {
-     //  return initialDir;
-    }
-
-    vec3 currPos = viewPos;
-    vec3 currDir = initialDir;
-    float stepSize = 1.0; // Start with 1 meter steps for mirages
-
-    for (int i = 0; i <32; i++) {
-        alt = length(currPos) - EARTH_RADIUS; // km
-        alt = alt * 1000.0; // convert to meters
-        // Stop if we hit the ground or exit the atmosphere
-        if (alt < 0.0 || alt > 8000.) break;
-
-        float dn_dh = getRefractionGradient(alt, 1.2);
-        vec3 up = normalize(currPos);
-        
-        // Angular dependency: bendDir is the rejection of gradient onto ray
-        vec3 gradN = up * dn_dh;
-
-
-
-
-        vec3 bendDir = gradN - dot(gradN, currDir) * currDir;
-
-        currDir += bendDir * stepSize;
-        currDir = normalize(currDir);
-        
-        // Move along the curved path
-        currPos += currDir * stepSize;
-        
-        // Exponentially increase step size to cover the whole atmosphere
-        stepSize *= 1.75; 
-    }
-    return currDir;
-}
-
-
-
 vec4 getRefractedDirectionWithLift(vec3 viewPos, vec3 initialDir, int max_steps) {
 
     float alt = viewPos.y - EARTH_RADIUS; // km
@@ -274,25 +152,6 @@ vec4 getRefractedDirectionWithLift(vec3 viewPos, vec3 initialDir, int max_steps)
     return vec4(currDir, totalLift);
 }
  
- 
-
-
-//==============================================================================
-
-vec2 getAspectUV(vec2 fragCoord) {
-    vec2 uv = fragCoord / iResolution.xy;
-    uv -= 0.5;
-    uv *= uUVScale; // uniform passed from TS
-    uv += 0.5;
-    return uv;
-}
- 
-//--------
-
-// mat3 rotX(float a) { float s = sin(a), c = cos(a); return mat3(1.,0.,0.,0.,c,-s,0.,s,c); }
-// mat3 rotY(float a) { float s = sin(a), c = cos(a); return mat3(c,0.,s,0.,1.,0.,-s,0.,c); }
-// mat3 rotZ(float a) { float s = sin(a), c = cos(a); return mat3(c,-s,0.,s,c,0.,0.,0.,1.); }
-
 
 /**
  *
@@ -310,21 +169,20 @@ vec3 musk_Lensflare(vec2 uv,vec2 pos, float sz)
 	vec2 uvd = uv*max(.12, (1.0+ log(length(uv)+0.1)));
 	
 	float ang = atan(main.y, main.x);
-	float dist=length(main); dist = pow(dist,.1);
-	//float n = musk_noise(vec2((ang-iTime/9.0)*16.0,dist*32.0));
+	float dist=length(main); dist = pow(dist,.1); 
 
     float L = length(uv-pos);
     sz = 30.;
     float f0sc = 0.1;
 	float f0 = 1.0/(L*sz+.1) * f0sc; 
-
-	// streaks
-	//f0 = f0+f0*(sin((ang+iTime/18.0 + musk_noise(abs(ang)+n/2.0)*2.0)*12.0)*.1+dist*.1+.8);
-    f0 = 0.01*f0; //+0.5*f0*(sin((ang+iTime/18.0 +2.0)*12.0)*.1+dist*.1+.8);
-     
-	// float f2 = max(1.0/(1.0+32.0*pow(length(uvd+0.8*pos),2.0)),.0)*00.25;
-	// float f22 = max(1.0/(1.0+32.0*pow(length(uvd+0.85*pos),2.0)),.0)*00.23;
-	// float f23 = max(1.0/(1.0+32.0*pow(length(uvd+0.9*pos),2.0)),.0)*00.21;
+ 
+#if SUN_STREAK == 1
+    // TODO: intensity of sunstreaks should be based on the angle to the sun, not just distance from center,
+    // and also based on intensity of the sun disk (brighter sun = stronger streaks). This is a placeholder.
+	f0 =  0.05* f0+ 0.2*f0*(sin((ang+iTime/18.0 +2.0)*12.0)*.1+dist*.1+.8);
+#else
+    f0 = 0.05*f0;
+#endif 
 
     // Outer arc , color abberration 
     float f2sc =  D;
@@ -354,9 +212,7 @@ vec3 musk_Lensflare(vec2 uv,vec2 pos, float sz)
 	float f6 = max(0.01-pow(length(uvx-0.3*pos),2.6),.0)*6.0* f6sc;
 	float f62 = max(0.01-pow(length(uvx-0.325*pos),2.6),.0)*3.0* f6sc;
 	float f63 = max(0.01-pow(length(uvx-0.35*pos),2.6),.0)*5.0 * f6sc;
-	// float f6 = max(0.01-pow(length(uvx-0.3*pos),1.6),.0)*6.0*4.;
-	// float f62 = max(0.01-pow(length(uvx-0.325*pos),1.6),.0)*3.0*10.;
-	// float f63 = max(0.01-pow(length(uvx-0.35*pos),1.6),.0)*5.0*8.;	
+ 
 
 	vec3 c = vec3(.0);
 	
@@ -375,45 +231,6 @@ vec3 musk_Lensflare(vec2 uv,vec2 pos, float sz)
 }
 
    
-
-/**
-    * Computes the spectral radiance of the sun disk based on the ray direction and sun direction.
-    * The sun disk is modeled as a solid angle with a specific angular radius.
-    * 
-    * @param rayDir The direction of the ray being traced.
-    * @param sunDir The direction of the sun.
-    * @param angularRadius The angular radius of the sun in radians.
-    * @return The spectral radiance of the sun disk in W·m⁻²·nm⁻¹·sr⁻¹.
-    */
-vec4 computeSunDiskSpectral(vec3 rayDir, vec3 sunDir, float angularRadius) {
-
-    float cosTheta   = dot(rayDir, sunDir);        // −1 … 1
-    float minCos     = cos(angularRadius);         // edge threshold
-    float minCos2     = cos(angularRadius*2.0);         // edge threshold
-    float discWidth  = fwidth(cosTheta);           // screenspace footprint
-    float alpha      = smoothstep(minCos - discWidth,
-                                minCos + discWidth,
-                                cosTheta);       // 0→1 across two pixels
-
- 
-    // Solid angle of sun disk in steradians (cone)
-    float omegaSun = 2.0 * PI * (1.0 - minCos);
-
-    if (cosTheta < minCos2)
-    {
-        // Outside sun disk, return zero radiance
-        return vec4(0.0);
-    }
-    // Convert spectral irradiance (W·m⁻²·nm⁻¹) to spectral radiance (W·m⁻²·nm⁻¹·sr⁻¹)
-    // ref: vec4(1.679, 1.828, 1.986, 1.307);
-    // Spectral radiance
-    
-
-    vec4 diskRadiance = sun_spectral_irradiance / omegaSun;
-    //vec4 spectral = vec4(1.500, 1.864, 1.715, 0.0) * 150.0;
-    //vec4 diskRadiance = spectral / omegaSun;
-    return diskRadiance;
-}
  
   
 vec3 limbDarkeningV3(float mu){
@@ -492,83 +309,12 @@ vec3 sunWithBloom(vec3 rayDir, vec3 sunDir) {
 
     return vec3(gaussianBloom+invBloom);
 
-}
-
-
-//------------------------------------------------------------------------------
-
-/*
- * ACES tonemapping fit for the sRGB color space
- * https://github.com/TheRealMJP/BakingLab/blob/master/BakingLab/ACES.hlsl
- */
-// sRGB => XYZ => D65_2_D60 => AP1 => RRT_SAT
-const mat3 aces_input_mat = mat3(
-    0.59719, 0.07600, 0.02840,
-    0.35458, 0.90834, 0.13383,
-    0.04823, 0.01566, 0.83777
-    );
-
-// ODT_SAT => XYZ => D60_2_D65 => sRGB
-const mat3 aces_output_mat = mat3(
-    1.60475, -0.10208, -0.00327,
-    -0.53108,  1.10813, -0.07276,
-    -0.07367, -0.00605,  1.07602
-    );
-
-vec3 rrt_and_odt_fit(vec3 v)
-{
-    vec3 a = v * (v + 0.0245786) - 0.000090537;
-    vec3 b = v * (0.983729 * v + 0.4329510) + 0.238081;
-    return a / b;
-}
-
-vec3 aces_fitted(vec3 color)
-{
-	color = aces_input_mat * color;
-    color = rrt_and_odt_fit(color);
-    color = aces_output_mat * color;
-    return clamp(color, 0.0, 1.0);
-}
-
-//-----------------------------------------------------------------------------
-
-vec3 gamma_correct(vec3 linear_srgb)
-{
-    vec3 a = 12.92 * linear_srgb;
-    vec3 b = 1.055 * pow(linear_srgb, vec3(1.0 / 2.4)) - 0.055;
-    vec3 c = step(vec3(0.0031308), linear_srgb);
-    return mix(a, b, c);
-}
- 
-
-void projection_camera(in vec2 fragCoord, out float phi, out float theta, out vec3 ray_dir)
-{
-    vec2 uv = (fragCoord - 0.5 * iResolution.xy) / iResolution.y;
-
-    ray_dir = vec3( uv.x, uv.y, 1.0 / tan(radians(fCameraFov) * 0.5));
-    ray_dir = normalize(ray_dir); 
-    ray_dir = uCameraMat* ray_dir;
-
-    phi = atan(ray_dir.x, ray_dir.z);
-    theta = asin(ray_dir.y);
-}
-
-
-  
- 
-
-vec3 jodieReinhardTonemap(vec3 c){
-    // From: https://www.shadertoy.com/view/tdSXzD
-    float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
-    vec3 tc = c / (c + 1.0);
-    return mix(c / (l + 1.0), tc, tc);
-}
+} 
 
 
 vec3 tonemap(vec3 col) {
 
-#if SHOW_RELATIVE_LUMINANCE == 0
-//#if TONEMAPPING_TECHNIQUE == 0
+#if SHOW_RELATIVE_LUMINANCE == 0 
     if( bEnableACES ) {
     // Apply exposure
         col = col * exp2(EXPOSURE);
@@ -576,13 +322,11 @@ vec3 tonemap(vec3 col) {
         col = aces_fitted(col);
         // Apply the sRGB transfer function (gamma correction)
         col = clamp(gamma_correct(col), 0.0, 1.0);
-    } else {
-//#elif TONEMAPPING_TECHNIQUE == 1
+    } else { 
         const float k = 0.05;
         col = 1.0 - exp(-k * col);
         col = clamp(gamma_correct(col), 0.0, 1.0);
-    }
-//#endif
+    } 
 #else
     const mat3 srgb_to_xyz = mat3(0.4124564, 0.2126729, 0.0193339,
                                   0.3575761, 0.7151522, 0.1191920,
@@ -595,13 +339,17 @@ vec3 tonemap(vec3 col) {
     return col;
 }
 
-vec4 transmittance_from_lut_debug(sampler2D lut, float cos_theta, float normalized_altitude)
-{
-    float v = clamp(cos_theta * 0.5 + 0.5, 0.0, 1.0); 
+ 
 
-    float u = clamp(normalized_altitude, 0.0, 1.0);
-    return texture(lut, vec2(u, v));
+
+vec2 getAspectUV(vec2 fragCoord) {
+    vec2 uv = fragCoord / iResolution.xy;
+    uv -= 0.5;
+    uv *= uUVScale; // uniform passed from TS
+    uv += 0.5;
+    return uv;
 }
+ 
 
 
 //------------------------------------------------------------------------------
@@ -631,12 +379,8 @@ void main()
         return;
     }  
 
-
-
     float phi, theta;
-    vec3 rayDir;
- 
-    projection_camera(fragCoord, phi, theta, rayDir);
+    vec3 rayDir = projection_camera(fragCoord, fCameraFov, uCameraMat, phi, theta);
 
     float azimuth = phi / PI * 0.5 + 0.5;
     float elev = sqrt(abs(theta) / (PI * 0.5)) * sign(theta) * 0.5 + 0.5;
@@ -646,136 +390,77 @@ void main()
 
     vec3 sunRGB = vec3(0.0); 
     
- #if SUN_METHOD == 0
+    //--- Sun rendering with atmospheric refraction and bloom
 
-        float distance_to_earth_center = EARTH_RADIUS + fEyeAttitude;
-        vec3 viewPos = vec3(0.0, distance_to_earth_center, 0.0);
+    float distance_to_earth_center = EARTH_RADIUS + fEyeAttitude;
+    vec3 viewPos = vec3(0.0, distance_to_earth_center, 0.0);
+    
+
+
+    // --- SUN CALCULATION ---
+    float cos_zenith = cos(radians(90.0 - fSunElevationDeg));
+    vec3 sunDir = normalize(vec3(0.0, cos_zenith, sqrt(1.0 - cos_zenith*cos_zenith)));
+
+    // Transmittance should still use the path to the sun
+    // (Technically the sun path is refracted too, but view-ray refraction is more visible)
+    float normalized_altitude = fEyeAttitude / ATMOSPHERE_THICKNESS;
+    vec4 transmittance_to_sun = transmittance_from_lut(iChannel1, dot(normalize(viewPos), sunDir), normalized_altitude); 
+
+
+    vec3 srgb_transmittance_to_sun = linear_srgb_from_spectral_samples(transmittance_to_sun);
+
+
+    // IMPORTANT: Check intersection with INITIAL ray to hide sun behind Earth,
+    // but use REFRACTED ray inside sunWithBloom to get the squashed shape.
+
+    float distG = rayPerpendicularDistance(viewPos, rayDir, EARTH_RADIUS);
+
+    if ( abs(distG) < 0.025  ) {
+        // near the horizon, show the refraction effect more clearly for debugging
+
+        vec4 result = getRefractedDirectionWithLift(viewPos, rayDir,24);
+
+        float phi0 = atan(result.x, result.z);
+        float theta0 = asin(result.y);
+        float azimuth0 = phi0 / PI * 0.5 + 0.5;
+        float elev0 = sqrt(abs(theta0) / (PI * 0.5)) * sign(theta0) * 0.5 + 0.5;
+
+        float delev = min(abs( elev0 - elev), 0.005)-0.0025;
+
+        col = 0.5*(col+texture(iChannel0, vec2(azimuth0, elev+ delev)).rgb);
         
 
+    }
     
-
-        // --- SUN CALCULATION ---
-        float cos_zenith = cos(radians(90.0 - fSunElevationDeg));
-        vec3 sunDir = normalize(vec3(0.0, cos_zenith, sqrt(1.0 - cos_zenith*cos_zenith)));
-
-        // Transmittance should still use the path to the sun
-        // (Technically the sun path is refracted too, but view-ray refraction is more visible)
-        float normalized_altitude = fEyeAttitude / ATMOSPHERE_THICKNESS;
-        vec4 transmittance_to_sun = transmittance_from_lut(iChannel1, dot(normalize(viewPos), sunDir), normalized_altitude); 
-
-
-        vec3 srgb_transmittance_to_sun = linear_srgb_from_spectral_samples(transmittance_to_sun);
-
- 
-        // IMPORTANT: Check intersection with INITIAL ray to hide sun behind Earth,
-        // but use REFRACTED ray inside sunWithBloom to get the squashed shape.
-
-        float distG = rayPerpendicularDistance(viewPos, rayDir, EARTH_RADIUS);
-
-        if ( abs(distG) < 0.025  ) {
-            // near the horizon, show the refraction effect more clearly for debugging
-    
-            vec4 result = getRefractedDirectionWithLift(viewPos, rayDir,24);
-
-            float phi0 = atan(result.x, result.z);
-            float theta0 = asin(result.y);
-            float azimuth0 = phi0 / PI * 0.5 + 0.5;
-            float elev0 = sqrt(abs(theta0) / (PI * 0.5)) * sign(theta0) * 0.5 + 0.5;
-
-            float delev = min(abs( elev0 - elev), 0.005)-0.0025;
-
-            col = 0.5*(col+texture(iChannel0, vec2(azimuth0, elev+ delev)).rgb);
-            
-
-        }
-        
-        if (rayIntersectSphere(viewPos, rayDir, EARTH_RADIUS) < 0.0) 
-        { 
-            // 1. March the GREEN ray (our baseline)
-            vec4 result = getRefractedDirectionWithLift(viewPos, rayDir, 24);
-            vec3 rayG = result.xyz;
-            
-            float liftG = result.w;
-
-            // 2. Derive Red and Blue rays by adjusting the lift
-            // We modify the Y component and re-normalize
-            vec3 rayR = normalize(vec3(rayG.x, rayDir.y + liftG * 0.6994, rayG.z));
-            vec3 rayB = normalize(vec3(rayG.x, rayDir.y + liftG * 1.09, rayG.z));
-
-            // 3. Sample the sun disc for each channel
-            float sunR = sunWithBloom(rayR, sunDir).r;
-            float sunG = sunWithBloom(rayG, sunDir).g;
-            float sunB = sunWithBloom(rayB, sunDir).b;
- 
-    
-            // 4. Combine and Apply Scattering
-            // Note: scattering hits Blue harder, so Blue might naturally disappear
-            vec3 sunLum = vec3(sunR, sunG, sunB);
- 
-            srgb_transmittance_to_sun.r = max(srgb_transmittance_to_sun.r, 0.5 / max(1.0, fAerosolTurbidity));
-            sunLum *= srgb_transmittance_to_sun; 
-            
-            col += sunLum;
-        }
-#else
-    vec4 sumLumSpectral = computeSunDiskSpectral(rayDir, sunDir, radians(SUN_RADIUS_DEGREES* SUN_SCALE)); // 0.53° angular radius of the sun
-
-
-
-    if (length(sumLumSpectral) > 0.0) 
+    if (rayIntersectSphere(viewPos, rayDir, EARTH_RADIUS) < 0.0) 
     { 
-        float distance_to_earth_center = EARTH_RADIUS + fEyeAttitude; // km
-        vec3 viewPos = vec3(0.0,0.0, distance_to_earth_center); // ray origin
-
-        if (rayIntersectSphere(viewPos, rayDir, EARTH_RADIUS) < 0.0) {
-            // sun is not behind the Earth
-            
+        // 1. March the GREEN ray (our baseline)
+        vec4 result = getRefractedDirectionWithLift(viewPos, rayDir, 24);
+        vec3 rayG = result.xyz;
         
-            // If the sun value is applied to this pixel, we need to calculate the transmittance to obscure it.
-            //sunLum *= getValFromTLUT(iChannel1, iChannelResolution[0].xy, viewPos, sunDir);
-            // Compute transmittance to sun using LUT
-            vec3 zenith = normalize(viewPos);
-            float cosTheta = dot(zenith, sunDir); 
-            float normalized_altitude = fEyeAttitude / ATMOSPHERE_THICKNESS; 
-            //const float ATMOSPHERE_TOP = 30.0; // km
-            //normalized_altitude = clamp(fEyeAttitude / ATMOSPHERE_TOP, 0.0, 1.0);
-            //float log_altitude = log(1.0 + fEyeAttitude) / log(1.0 + ATMOSPHERE_THICKNESS); // [0,1]
-           
+        float liftG = result.w;
 
-            vec4 transmittance_to_sun = transmittance_from_lut(
-                        iChannel1, 
-                        cosTheta, 
-                        normalized_altitude
-                        //log_altitude 
-                        ); 
-            //vec4 tSun = max(transmittance_to_sun, vec4(.05)); // minimum floor
-            //transmittance_to_sun = tSun;
+        // 2. Derive Red and Blue rays by adjusting the lift
+        // We modify the Y component and re-normalize
+        vec3 rayR = normalize(vec3(rayG.x, rayDir.y + liftG * 0.6994, rayG.z));
+        vec3 rayB = normalize(vec3(rayG.x, rayDir.y + liftG * 1.09, rayG.z));
 
-                                    
-            vec4 attenuatedSpectral = sumLumSpectral * transmittance_to_sun; // attenuate the sun disk by the transmittance to the sun
-            //attenuatedSpectral *= exp2(-1.0*(-1.0) ); // apply exposure
-  
-            
-             sunRGB = linear_srgb_from_spectral_samples(attenuatedSpectral);
-             //sunRGB *=sunWithBloom(rayDir, sunDir)* .1;
-            
-            // Add subtle Mie bloom
-             
-             //sunRGB = computeSunBloom(rayDir, sunDir, radians(SUN_RADIUS_DEGREES* SUN_SCALE), 1.005, 3000.0)*10.0;
-           // sunRGB = sunWithBloomPBR(rayDir, sunDir , transmittance_to_sun.r, 1.0) * 1.0;
-           
-            float sc = 0.00001; // scale factor to convert from W·m⁻²·nm⁻¹ to RGB
-            if ( length(sunRGB*sc) < length(col) ) {
-                col += (sunRGB).rgb*sc*10.;
-            } else {
+        // 3. Sample the sun disc for each channel
+        float sunR = sunWithBloom(rayR, sunDir).r;
+        float sunG = sunWithBloom(rayG, sunDir).g;
+        float sunB = sunWithBloom(rayB, sunDir).b;
+
+
+        // 4. Combine and Apply Scattering
+        // Note: scattering hits Blue harder, so Blue might naturally disappear
+        vec3 sunLum = vec3(sunR, sunG, sunB);
+
+        srgb_transmittance_to_sun.r = max(srgb_transmittance_to_sun.r, 0.5 / max(1.0, fAerosolTurbidity));
+        sunLum *= srgb_transmittance_to_sun; 
         
-                col *= (sunRGB).rgb* sc;
-            }
- 
-        }
-       
-    }  
-#endif
+        col += sunLum;
+    }
+
  
 
     //-------------------------------------
@@ -798,17 +483,9 @@ void main()
 
             {
                 // Inside sun disk → return pure white light (maximum brightness).
-                //vec3 col = vec3(0.0);
+          
                 float d = 1.0- minSunCosTheta;
-                //cosTheta = ( (cosTheta-minSunCosTheta)/ d);
-                // col.r = limbDarkening(cosTheta ,700.0);
-                // col.g = limbDarkening(cosTheta ,555.0);
-                // col.b = limbDarkening(cosTheta ,380.0);
-
-                //vec3 col2 = limbDarkeningV3(cosTheta);
-
-                //return 8.*col;
-                //return vec3(1.0)*4.*max(smoothstep(  minSunCosTheta-t,  minSunCosTheta+t, cosTheta), 0.25);
+         
 
 
                 vec3 deviation = sunDir - viewVector;
@@ -844,9 +521,7 @@ void main()
         }
     }
 
-
-
-    // col = jodieReinhardTonemap(col);
+    // Optional: Apply gamma correction to convert from linear to sRGB space for display.
     // col = pow(col, vec3(1.0/2.2));
  
     gl_FragColor = vec4(col, 1.0);  

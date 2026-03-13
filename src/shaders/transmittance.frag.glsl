@@ -12,8 +12,8 @@ uniform float fAerosolTurbidity;
 uniform float iTime;
 uniform vec2 iResolution;
 
-#include "sky-sun-utils.glsl"
-
+#include "atmosphere.glsl"
+#include "math.glsl"
 /**
  * Maps UV coordinates to internal atmospheric parameters.
  * Bruneton usually maps: 

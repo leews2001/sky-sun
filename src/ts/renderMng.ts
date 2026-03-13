@@ -42,12 +42,18 @@ export class RenderManager {
         console.log('>> RenderManager init - Textures Loaded');
         const [
             commonGLSL,
+            commonMathGLSL,
+            commonNoiseGLSL,
+            tonemappingGLSL,
             transmittanceGLSL,
             scatteringGLSL,
             skyImageGLSL,
             bokehImageGLSL,
         ] = await Promise.all([
-            loadShader('src/shaders/sky-sun-utils.glsl'),
+            loadShader('src/shaders/atmosphere.glsl'),
+            loadShader('src/shaders/math.glsl'),
+            loadShader('src/shaders/noise.glsl'),
+            loadShader('src/shaders/tonemapping.glsl'),
             loadShader('src/shaders/transmittance.frag.glsl'),
             loadShader('src/shaders/scattering.frag.glsl'),
             loadShader('src/shaders/skyImage.frag.glsl'),
@@ -55,7 +61,12 @@ export class RenderManager {
         ]);
         console.log('>> RenderManager init - Shaders Loaded');
 
-        const includeMap = { 'sky-sun-utils.glsl': commonGLSL };
+        const includeMap = { 
+            'atmosphere.glsl': commonGLSL,
+            'math.glsl': commonMathGLSL,
+            'noise.glsl': commonNoiseGLSL,
+            'tonemapping.glsl': tonemappingGLSL
+        };
 
         // Transmittance
         this.materials.transmittance = 
