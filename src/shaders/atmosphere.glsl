@@ -1,7 +1,6 @@
 precision highp float;
 // Configurable parameters
-#define SUN_METHOD 0
-#define ANIMATE_SUN 1
+ 
 
 // 0=equirectangular, 1=fisheye, 2=projection
 #define CAMERA_TYPE 2
@@ -201,22 +200,7 @@ vec3 get_sun_direction_from_elevation(float elevation_degrees)
     return vec3(-sqrt(1.0 - cos_zenith*cos_zenith), 0.0, cos_zenith);
 }
 
-
-
-// vec3 get_sun_direction(float time)
-// {
-//     time = 5.5;
-//     // float a0 = 0.00;
-//     // return vec3(-sqrt(abs(1.0 - a0*a0)), 0.0, a0);
-
-// #if ANIMATE_SUN == 0
-//     return SUN_DIR;
-// #else
-//     float a = sin(time*0.1 - 1.5) * 0.55 + 0.45;
-//     return vec3(-sqrt(1.0 - a*a), 0.0, a);
-// #endif
-// }
-
+ 
 /*
  * Helper function to obtain the transmittance to the top of the atmosphere
  * from Buffer A.
@@ -232,21 +216,6 @@ vec4 transmittance_from_lut(sampler2D lut, float cos_theta, float normalized_alt
     return texture(lut, vec2(u, v));
 }
 
-/*
- * Returns the distance between ro and the first intersection with the sphere
- * or -1.0 if there is no intersection. The sphere's origin is (0,0,0).
- * -1.0 is also returned if the ray is pointing away from the sphere.
- */
-float ray_sphere_intersection(vec3 ro, vec3 rd, float radius)
-{
-    float b = dot(ro, rd);
-    float c = dot(ro, ro) - radius*radius;
-    if (c > 0.0 && b > 0.0) return -1.0;
-    float d = b*b - c;
-    if (d < 0.0) return -1.0;
-    if (d > b*b) return (-b+sqrt(d));
-    return (-b-sqrt(d));
-}
 
 
 /*
@@ -438,63 +407,4 @@ vec3 linear_srgb_from_spectral_samples(vec4 L)
     return SPECTRAL_M * L;
 }
 
-
-//==============================================================================
-
-vec2 quadratic_solve(float a,float b,float c)
-{
-    float d=b*b-a*c;
-#if 1
-    return d>0.0?(-b+sqrt(d)*vec2(-1,+1))/a:vec2(+INF,-INF);
-#else
-    // Expected to be more accurate.
-    if(!(d>0.0)) return vec2(+INF,-INF);
-    float q=-b+(b<0.0?sqrt(d):-sqrt(d)),l=c/q,h=q/a; // NOT sign(b), in case b=0.
-    return vec2(min(l,h),max(l,h));
-#endif
-}
-
-
-float rayPerpendicularDistance(vec3 ro, vec3 rd,  float radius)
-{
-    float b = dot(ro, rd);
-    if ( b >  0.) {
-        return 999.;
-    }
-
-    float d2 = dot(ro, ro) - b*b;
-    
-    float distance_to_surface = sqrt(d2) - radius; 
-    return distance_to_surface;
-}
-
-
-// It returns the distance t along the ray to where it hits a sphere centered at the origin. 
-// If there’s no hit, it returns -1.0.
-float rayIntersectSphere(vec3 ro, vec3 rd, float radius) {
-    float b = dot(ro, rd);
-    float c = dot(ro, ro) - radius*radius;
-
-
-    if (c > 0.0f && b > 0.0) {
-        // Early Exit: Ray Pointing Away
-        //  c > 0 → ray origin is outside the sphere
-        //  b > 0 → ray direction points away from sphere center
-        return -1.0;
-    }
-
-    float discr = b*b - c;
-    if (discr < 0.0) {
-        // Discriminant Check: no real roots → ray misses sphere.
-        return -1.0;
-    }
-    
-    // Special case: inside sphere, use far discriminant
-    if (discr > b*b) {
-        // ro inside sphere, so return far hit → -b + sqrt(discr)
-        return (-b + sqrt(discr));
-    }
-
-    // Near hit → -b - sqrt(discr)
-    return -b - sqrt(discr);
-}
+ 
