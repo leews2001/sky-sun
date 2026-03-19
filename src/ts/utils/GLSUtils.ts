@@ -61,7 +61,8 @@ export function injectIncludes(
 //   });
 // }
 
-export async function loadShader(path: string): Promise<string> {
+export async function loadShader(path: string): Promise<string> 
+{
   const url = new URL(path, window.location.href).href;
 
   try {
@@ -102,36 +103,40 @@ export function createShaderMaterial(
   materialName: string,
 	width: number, height: number, 
 	fragmentSource: string, 
-	extraUniforms = {}) : THREE.ShaderMaterial
-	{
-        const baseUniforms = {
-            iResolution: { value: new THREE.Vector3( width, height, 1) },
-            iTime: { value: 0. },
-            iChannel0: { value: null },
-            iChannel1: { value: null },
-            iChannel2: { value: null },
-            iChannelResolution: { value: [
-                new THREE.Vector3(width, height, 1),
-                new THREE.Vector3(width, height, 1),
-                new THREE.Vector3(width, height, 1)
-            ]}
-        };
-        const mergedUniforms = {
-            ...baseUniforms,
-            ...extraUniforms
-        };
+	extraUniforms = {},
+  sharedUniforms = {} // New parameter for global state
+) : THREE.ShaderMaterial {
 
-        return new THREE.ShaderMaterial({
-            name: materialName,
-            fragmentShader: fragmentSource,
-            vertexShader: /* glsl */`
-                void main() {
-                    gl_Position = vec4(position, 1.0);
-                }
-            `,
-            uniforms: mergedUniforms
-        });
-    } // createShaderMaterial
+  const baseUniforms = {
+      iResolution: { value: new THREE.Vector3( width, height, 1) },
+      iTime: { value: 0. },
+      iFrame: { value: 0 },
+      iChannel0: { value: null },
+      iChannel1: { value: null },
+      iChannel2: { value: null },
+      iChannelResolution: { value: [
+          new THREE.Vector3(width, height, 1),
+          new THREE.Vector3(width, height, 1),
+          new THREE.Vector3(width, height, 1)
+      ]}
+  };
+  const mergedUniforms = {
+      ...baseUniforms,
+      ...extraUniforms,
+      ...sharedUniforms // Include shared uniforms for global state
+  };
+
+  return new THREE.ShaderMaterial({
+      name: materialName,
+      fragmentShader: fragmentSource,
+      vertexShader: /* glsl */`
+          void main() {
+              gl_Position = vec4(position, 1.0);
+          }
+      `,
+      uniforms: mergedUniforms
+  });
+  } // createShaderMaterial
 
 export function createRenderTarget(wd: number, ht: number): THREE.WebGLRenderTarget {
         return new THREE.WebGLRenderTarget(wd, ht, {
