@@ -18,6 +18,9 @@ const FLAG_ENABLE_PHASE_SCATTER = 1 << 6; // New flag for phase scattering
 const FLAG_ENABLE_SHADOW = 1 << 7; // New flag for crepuscular shadow effect    
  
 
+const DEFAULT_GRAIN_WEIGHT = 0.9;
+
+
 let shaderFlags = 0;
 
 function setFlag(flag: number, enabled: boolean) {
@@ -34,8 +37,15 @@ function toggleFlag(flag: number) {
 export class RenderSkySun {
     private gui: GUI = new GUI();
     private guiSettings!: {
+        bEnableRefract: boolean;
+        bEnableHeatHaze: boolean;
+        bEnableLimbDarken: boolean;
         bEnableFlare: boolean;
         bEnableACES: boolean;
+        bEnableLensDirt: boolean;
+        bEnableDither: boolean;
+        bEnableGrain: boolean;
+        GrainWeight: number;
         CamPitch: number;
         CamYaw: number;
         CamRoll: number;
@@ -56,8 +66,16 @@ export class RenderSkySun {
     private keysPressed: Record<string, boolean> = {};
     private anyKeysPressed: boolean = false;
 
-    private sunElevationDeg: number = 0.; 
+    private eyeAttitude: number = 0.05; // Camera height above ground, in kilometers. Affects atmospheric scattering calculations.
+    private lastEyeAttitude: number = 0.05;
+
+    private sunElevationDeg: number = 0.;
+    private lastSunElevationDeg: number = 0.; 
+    
     private aerosolTurbidity: number= 1.;
+    private lastAerosol: number = 1.;
+    private needsLutUpdate: boolean = true; // Flag to indicate if transmittance LUT needs updating
+    private needsScatteringUpdate: boolean = true; // Flag to indicate if scattering LUT needs updating
 
 
     private renderer: THREE.WebGLRenderer;
@@ -150,7 +168,11 @@ export class RenderSkySun {
         transmittanceUniforms.fAerosolTurbidity = transmittanceUniforms.fAerosolTurbidity || { value: 1.0 };
 
         
-        skyImageUniforms.bEnableACES = skyImageUniforms.bEnableACES || { value: true }
+        skyImageUniforms.bEnableACES = skyImageUniforms.bEnableACES || { value: true };
+        skyImageUniforms.bEnableLensDirt = skyImageUniforms.bEnableLensDirt || {value: true};
+        skyImageUniforms.bEnableRefract = skyImageUniforms.bEnableRefract|| {value: true};
+        skyImageUniforms.bEnableHeatHaze = skyImageUniforms.bEnableHeatHaze || {value: true};
+        skyImageUniforms.bEnableLimbDarken = skyImageUniforms.bEnableLimbDarken || { value: true};
         skyImageUniforms.bEnableFlare = skyImageUniforms.bEnableFlare || { value: true };
         skyImageUniforms.fEyeAttitude= skyImageUniforms.fEyeAttitude || { value: 0.05 };
         skyImageUniforms.fSunElevationDeg = skyImageUniforms.fSunElevationDeg || { value: 0.0 };
@@ -158,11 +180,22 @@ export class RenderSkySun {
 
         skyImageUniforms.uCameraMat.value.copy(instance.movController.cameraMat3);
         skyImageUniforms.fCameraFov = skyImageUniforms.fCameraFov || { value: 80.0 };
+
+        bokehImageUniforms.bEnableDither = bokehImageUniforms.bEnableDither || { value: true};
+        bokehImageUniforms.bEnableGrain = bokehImageUniforms.bEnableGrain || { value: true };
+        
         // Create a settings object to link to GUI
 
         instance.guiSettings = {
+            bEnableRefract: skyImageUniforms.bEnableRefract.value,
+            bEnableHeatHaze: skyImageUniforms.bEnableHeatHaze.value,
+            bEnableLimbDarken: skyImageUniforms.bEnableLimbDarken.value,
             bEnableFlare: skyImageUniforms.bEnableFlare.value,
             bEnableACES: skyImageUniforms.bEnableACES.value,
+            bEnableLensDirt: skyImageUniforms.bEnableLensDirt.value,
+            bEnableDither: bokehImageUniforms.bEnableDither? bokehImageUniforms.bEnableDither.value: false,
+            bEnableGrain: bokehImageUniforms.bEnableGrain ? bokehImageUniforms.bEnableGrain.value : false,
+            GrainWeight: DEFAULT_GRAIN_WEIGHT,
             bEnableMultipleScattering: scatteringUniforms.bEnableMultipleScattering.value,
             CamPitch: 0.,
             CamYaw: 0.,
@@ -178,21 +211,65 @@ export class RenderSkySun {
         instance.prevPitch = instance.guiSettings.CamPitch;
         instance.prevYaw = instance.guiSettings.CamYaw;
 
+        instance.gui.add(instance.guiSettings, 'bEnableRefract')
+            .name('Refract')
+            .onChange((val: boolean) => {
+                skyImageUniforms.bEnableRefract.value = val;
+            });
+
+        instance.gui.add(instance.guiSettings, 'bEnableHeatHaze')
+            .name('Heat Haze')
+            .onChange((val: boolean) => {
+                skyImageUniforms.bEnableHeatHaze.value = val;
+            });
+
+        instance.gui.add(instance.guiSettings, 'bEnableLimbDarken')
+            .name('Limb Dark')
+            .onChange((val: boolean) => {
+                skyImageUniforms.bEnableLimbDarken.value = val;
+            });
+
         instance.gui.add(instance.guiSettings, 'bEnableFlare')
-                    .name('Lens Flare')
-                    .onChange((val: boolean) => {
-                        skyImageUniforms.bEnableFlare.value = val;
-                    });
+            .name('Lens Flare')
+            .onChange((val: boolean) => {
+                skyImageUniforms.bEnableFlare.value = val;
+            });
         
         instance.gui.add(instance.guiSettings, 'bEnableACES')
             .name('ACES')
             .onChange((val: boolean) => {
                 skyImageUniforms.bEnableACES.value = val;
             });
+
+        instance.gui.add(instance.guiSettings,'bEnableLensDirt')
+            .name('Lens Dirt')
+            .onChange((val: boolean) => {
+                skyImageUniforms.bEnableLensDirt.value = val;
+            });
+
         instance.gui.add(instance.guiSettings, 'bEnableMultipleScattering')
-            .name('M.Ssattering')
+            .name('M.Scatter')
             .onChange((val: boolean) => {
                 scatteringUniforms.bEnableMultipleScattering.value = val;
+            });
+
+        instance.gui.add(instance.guiSettings, 'bEnableDither')
+            .name('DeBand')
+            .onChange((val: boolean) => {
+                bokehImageUniforms.bEnableDither.value = val;
+            });
+
+        instance.gui.add(instance.guiSettings, 'bEnableGrain')
+            .name('Film Grain')
+            .onChange((val: boolean) => {
+                bokehImageUniforms.bEnableGrain.value = val;
+            });
+
+        instance.gui.add(instance.guiSettings, 'GrainWeight', .0, 2.5, 0.1).decimals(1)
+            .name('Grain Wgt.')
+            .listen()
+            .onChange((val: number) => { 
+                bokehImageUniforms.fGrainWeight.value = val;
             });
 
         instance.gui.add(instance.guiSettings, 'CamRoll', -180.0, 180.0, 0.1).decimals(1)
@@ -259,6 +336,7 @@ export class RenderSkySun {
                 scatteringUniforms.fEyeAttitude.value = val;
                 skyImageUniforms.fEyeAttitude.value = val;
                 instance.movController.camYPos = val;
+                instance.eyeAttitude = val;
                 //instance.guiSettings.EyeAttitude = val;
             });
 
@@ -345,6 +423,8 @@ export class RenderSkySun {
         this.passes.materials.skyImage.uniforms.fCameraFov.value = this.movController.camFOV;
         this.passes.materials.skyImage.uniforms.fEyeAttitude.value = this.movController.camYPos;
         this.passes.materials.skyImage.uniforms.uCameraMat.value.copy(this.movController.cameraMat3); 
+        
+        this.eyeAttitude = this.movController.camYPos;
 
 
         this.prevRoll = euler.roll;
@@ -384,18 +464,20 @@ export class RenderSkySun {
         this.passes.materials.transmittance.uniforms.fAerosolTurbidity.value = this.aerosolTurbidity;
         this.passes.materials.skyImage.uniforms.fAerosolTurbidity.value = this.aerosolTurbidity;
         this.passes.materials.skyImage.uniforms.fSunElevationDeg.value = this.sunElevationDeg;
+    
 
         return;
     }
 
-    //------====== PUBLIC
 
     /**
      * Renders the scene using the renderer, updating uniforms and rendering passes.
      * This method is called in the animation loop to continuously render the sky.
      */
+
     public render() {
         // this.stats.begin();
+
         this.timer.update();
 
         if( this.anyKeysPressed) {
@@ -404,20 +486,43 @@ export class RenderSkySun {
             this.updateEnvironmentParams(dt);      // << Update time of day
         }
 
+        // 1. Check for "Dirty" state
+        // If the atmospheric parameters haven't changed, we skip the transmittance bake
+        if (Math.abs( this.aerosolTurbidity - this.lastAerosol) > 0.01 || this.needsLutUpdate) {
+            this.renderToTarget(this.passes.materials.transmittance, this.passes.renderTargets.transmittance!);
+            
+            //this.lastAerosol = this.aerosolTurbidity
+            this.needsLutUpdate = false;
+            console.log("Transmittance LUT updated."); 
+        }
 
+        if ( Math.abs( this.aerosolTurbidity - this.lastAerosol) > 0.01 ||
+            Math.abs(this.sunElevationDeg - this.lastSunElevationDeg) > 0.01 ||
+            Math.abs(this.eyeAttitude - this.lastEyeAttitude) > 0.01 ||
+            this.needsScatteringUpdate) {
+
+            this.lastEyeAttitude = this.eyeAttitude;
+            this.renderToTarget(this.passes.materials.scattering, this.passes.renderTargets.scattering!);
+            this.needsScatteringUpdate = false;
+            console.log("Scattering LUT updated."); 
+        }
+
+        this.lastAerosol = this.aerosolTurbidity
+ 
+        // 2. Update Global Uniforms for dynamic passes
         const elapsed = this.timer.getElapsed();
-        this.passes.materials.scattering.uniforms.iTime.value = elapsed;
-        this.passes.materials.skyImage.uniforms.iTime.value = elapsed;
 
-        this.renderToTarget(this.passes.materials.transmittance, this.passes.renderTargets.transmittance!);
-        this.renderToTarget(this.passes.materials.scattering, this.passes.renderTargets.scattering!);
+        this.passes.globalUniforms.iTime.value = elapsed;
+        this.passes.globalUniforms.iFrame.value++; // Increment global frame counter 
+
+        // 3. Dynamic Passes (These still run every frame because sun/camera move)
         this.renderToTarget(this.passes.materials.skyImage, this.passes.renderTargets.skyImage!);
 
+        // 4. Final Composition
         // explicitly set the quad’s material before rendering the scene,
         // This ensures the quad isn’t left with an intermediate material 
         // (like transmittance or ing) after an offscreen render pass.
         this.setFinalDisplayMaterial();
-
         this.renderer.render(this.scene, this.camera);
     
         // this.stats.end();
@@ -432,6 +537,8 @@ export class RenderSkySun {
 
         this.renderer.setSize(width, height);
         this.passes.resize(width, height);
+        this.needsLutUpdate = true; // Mark LUT as needing update on resize, since resolution changes can affect it
+        this.needsScatteringUpdate = true; // Mark scattering LUT as needing update as well, since it may depend on resolution or other parameters
         return;
     }
 
