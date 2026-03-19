@@ -8,7 +8,7 @@ export class MovementController {
     
     public cameraMat3 = new THREE.Matrix3();  // Three.js Matrix3 for uniforms
     public camYPos : number = .05; // Camera Y position for uniform updates
-    public camFOV: number = 70.0; // Camera Field of View;
+    public camFOV: number = 60.0; // Camera Field of View;
 
     private readonly _camRot = mat3.create();     // reuse mat3
     private readonly _axisRight = vec3.create();  // reuse vectors
