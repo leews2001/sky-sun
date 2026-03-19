@@ -77,10 +77,10 @@ button {
 button:hover {
   border-color: #646cff;
 }
-button:focus,
+/* button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
-}
+} */
 
 @media (prefers-color-scheme: light) {
   :root {
@@ -130,57 +130,104 @@ button:focus-visible {
  
 /* lil-gui styles */
 
-
 .lil-gui {
-	--name-width: 5em;
-	--width: 180px;
-	--slider-knob-width: 0.33em;
-	--widget-padding: 0 0 0 0.5em;
-	--number-color: rgb(242, 255, 0);
-  --widget-color: rgb(29, 51, 58);
-  --background-color: #02020280; 
-  --input-font-size: 10px !important; /* Adjust the size as needed */
-  --font-size: 10px !important; /* Adjust the size as needed */
-  --font-family: 'Courier New', monospace;
+	font-family: var(--font-family);
+	font-size: var(--font-size);
+	line-height: 1;
+
+	font-weight: normal;
+	font-style: normal;
+	text-align: left;
+
+	color: var(--text-color);
+
+	user-select: none;
+	-webkit-user-select: none;
+ 
+	touch-action: manipulation;
+
+	&,
+	& * {
+		box-sizing: border-box;
+		margin: 3;
+		padding: 5;
+	}
+
+	&.lil-root {
+		width: var(--width, 245px);
+		display: flex;
+		flex-direction: column;
+		background: var(--background-color);
+		> .lil-title {
+			background: var(--title-background-color);
+			color: var(--title-text-color);
+		}
+		> .lil-children {
+			overflow-x: hidden;
+			overflow-y: auto;
+			&::-webkit-scrollbar {
+				width: var(--scrollbar-width);
+				height: var(--scrollbar-width);
+				background: var(--background-color);
+			}
+			&::-webkit-scrollbar-thumb {
+				border-radius: var(--scrollbar-width);
+				background: var(--focus-color);
+			}
+		}
+	}
+   
+	--background-color: #0f0f0fbf;
+	--text-color: #fb8b4b;
+	--title-background-color: #010101;
+	--title-text-color: #ebebeb;
+	--widget-color: #0202028f;
+	--hover-color: #4f4f4f;
+	--focus-color: #595959;
+	--number-color: #02fb3c;
+	--string-color: #02db3c;
+	--font-size: 10px;
+	--input-font-size: 11px;
+	--font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+	--font-family-mono: Menlo, Monaco, Consolas, 'Droid Sans Mono', monospace;
+	--padding: 4px;
+	--spacing: 4px;
+	--widget-height: 20px;
+	--title-height: calc(var(--widget-height) + var(--spacing) * 1.25);
+	--name-width: 45%;
+	--slider-knob-width: 2px;
+	--slider-input-width: 27%;
+	--color-input-width: 27%;
+	--slider-input-min-width: 45px;
+	--color-input-min-width: 45px;
+	--folder-indent: 7px;
+	--widget-padding: 0 0 0 3px;
+	--widget-border-radius: 2px;
+	--checkbox-size: calc(0.75 * var(--widget-height));
+	--scrollbar-width: 5px;
+
+	@include touch-vars {
+		--widget-height: 28px;
+		--padding: 6px;
+		--spacing: 6px;
+		--font-size: 13px;
+		--input-font-size: 16px; // < 16px causes zoom on iOS
+		--folder-indent: 10px;
+		--scrollbar-width: 7px;
+		--slider-input-min-width: 50px;
+		--color-input-min-width: 65px;
+	}
+
+	&.lil-auto-place,
+	// https://github.com/georgealways/lil-gui/pull/154
+	// .autoPlace is deprecated in 0.21.0, but unlikely to conflict with user styles.
+	// keeping it for backwards compatibility.
+	&.autoPlace {
+		max-height: 100%;
+		position: fixed;
+		top: 0;
+		right: 15px;
+		z-index: 1001;
+	}
 }
 
-.lil-gui.root {
-	border-bottom-right-radius: 0em;
-	margin: 1em;
-	padding: 0 em;
-	right: 0;
-	top: 0;
-	position: fixed;
-}
-
-.lil-gui input.top{
-	border-top-right-radius: 0.65em;
-}
-
-.lil-gui input.bottom, .lil-gui button.bottom{
-	border-bottom-right-radius: 0.65em;
-}
-
-.lil-gui .controller.option .widget div {
-	width: 9.15em;
-}
-
-.lil-gui .gap{
-	margin-bottom: 2em;
-}
-
-.lil-gui em {
-	color: Orange;
-	font-weight: bold;
-	font-style: small;
-}
-
-.lil-gui big {
-	font-weight: bold;
-	text-transform: uppercase;
-}
-
-
-.lil-gui .controller.string input {
-	font-family: Monospace;
-}
