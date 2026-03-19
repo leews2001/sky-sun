@@ -10,12 +10,19 @@ const RT_KEYS = ['transmittance', 'scattering', 'skyImage'] as const;
 type RenderTargetName = typeof RT_KEYS[number];
 
 
+const DEFAULT_GRAIN_WEIGHT = 0.9;
+
 /**
  * RenderManager is responsible for managing the rendering process of the sky system.
  * It initializes the necessary materials and render targets, and provides methods to resize them.
  */
 export class RenderManager {
  
+    globalUniforms = {
+        iTime: { value: 0 },
+        iFrame: { value: 0 }
+    };
+
     private canvas!: HTMLCanvasElement;
     private texAspect: number = 1.0; 
 
@@ -37,8 +44,10 @@ export class RenderManager {
         console.log('>> RenderManager init');
         this.canvas = canvas;
 
-        const {  lensDirtTex512 } = 
+        const {  lensDirtTex512, blueNoise512 } = 
             await RenderManager.loadTextures();
+
+        
         console.log('>> RenderManager init - Textures Loaded');
         const [
             commonGLSL,
@@ -75,7 +84,8 @@ export class RenderManager {
                 width, 
                 height, 
                 injectIncludes(transmittanceGLSL, includeMap),
-                { fAerosolTurbidity: { value: 1.0 } }
+                { fAerosolTurbidity: { value: 1.0 } },
+                this.globalUniforms
             );
 
         this.renderTargets.transmittance = createRenderTarget(width, height);
@@ -89,7 +99,9 @@ export class RenderManager {
                     bEnableMultipleScattering: { value: true },
                     fEyeAttitude: {value: 0.05}, 
                     fSunElevationDeg: { value: 0.0 },
-                    fAerosolTurbidity: { value: 1.0 } }
+                    fAerosolTurbidity: { value: 1.0 } 
+                },
+                this.globalUniforms
             );
 
         this.materials.scattering.uniforms.iChannel0.value = this.renderTargets.transmittance.texture;
@@ -103,13 +115,16 @@ export class RenderManager {
                 uUVScale: { value: new THREE.Vector2(1.0, 1.0) },
                 iChannel2: { value: lensDirtTex512 },
                 bEnableACES: { value: true },
+                bEnableLensDirt: {value: true},
                 fEyeAttitude: {value: 0.05}, 
                 fSunElevationDeg: { value: 0.0 },
                 uCameraMat: { value: new THREE.Matrix3() },
                 fCameraPitch: {value:-7.0}, 
                 fCameraYaw: { value: 0.0 },
-                fCameraFov: { value: 80.0 },
-                u_keyPressed: { value: 0 } }
+                fCameraFov: { value: 60.0 },
+                u_keyPressed: { value: 0 } 
+            },
+            this.globalUniforms
         );
 
         this.renderTargets.skyImage = createRenderTarget(width, height);
@@ -118,8 +133,10 @@ export class RenderManager {
         this.materials.bokehImage = createShaderMaterial(
             'BokehImage', width, height, injectIncludes(bokehImageGLSL, includeMap),
             { 
-                //iChannel0: { value: this.renderTargets.skyImage.texture },
-            }
+                fGrainWeight: { value: DEFAULT_GRAIN_WEIGHT },
+                uBlueNoiseTex: { value: blueNoise512}
+            },
+            this.globalUniforms
         );
 
 
@@ -163,15 +180,29 @@ export class RenderManager {
     // }
 
 
-    private static async loadTextures(): Promise<{ lensDirtTex512: THREE.Texture }> 
+    private static async loadTextures(): Promise<{ lensDirtTex512: THREE.Texture, blueNoise512 : THREE.Texture}> 
     {
+        // const size = 64;
+        // console.log('>> Generating blue noise texture...');
+        // const noiseData = generateBlueNoise(size);
+
+        // console.log('>> Blue noise texture generated');
+        // const blueNoiseTexture = new THREE.DataTexture(
+        //     noiseData,
+        //     size,
+        //     size,
+        //     THREE.RGBAFormat,       // We only need one channel (R)
+        //     THREE.UnsignedByteType
+        // );
+
+        //saveDataTextureAsPNG(blueNoiseTexture, 'blue_noise.png'); // Save the generated blue noise texture for inspection
+        //-----
 
         let lensDirtTex512: THREE.Texture;
+        
 
         try {
-            lensDirtTex512 = await loadRGBA64DitherTexture(
-            '/assets/textures/Texturelabs_LensFX_217S_med.jpg'
-            );
+            lensDirtTex512 = await loadRGBA64DitherTexture(  '/assets/textures/Texturelabs_LensFX_217S_med.jpg'  );
         } catch (err) {
             console.warn('Lens dirt texture failed to load, using fallback.', err);
 
@@ -179,7 +210,17 @@ export class RenderManager {
             lensDirtTex512 = createFallbackTexture();
         }
 
-        return { lensDirtTex512 };
+        let blueNoise512: THREE.Texture;
+
+        try{
+            //bn_mask_512_512.png is a pre-generated blue noise texture that is 512x512 in size, with RGBA channels.
+            blueNoise512 = await loadRGBA64DitherTexture('/assets/textures/bn_mask_512_512.png');
+        } catch(err) {
+            console.warn('Blue noise texture failed to load, using fallback.', err);
+            blueNoise512 = createFallbackTexture();
+        }
+
+        return { lensDirtTex512, blueNoise512};
     }
 
     private updateLensDirtScale() {
