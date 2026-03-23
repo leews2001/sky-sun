@@ -479,11 +479,17 @@ export class RenderSkySun {
         // this.stats.begin();
 
         this.timer.update();
+        const dt = this.timer.getDelta();   // << Use delta for smooth motion
+        
 
         if( this.anyKeysPressed) {
-            const dt = this.timer.getDelta();   // << Use delta for smooth motion
+            
             this.updateCameraOrientation(dt);    // << Update orientation
             this.updateEnvironmentParams(dt);      // << Update time of day
+        }
+        {
+            this.movController.applyIdleMotion(dt);
+            this.passes.materials.skyImage.uniforms.uCameraMat.value.copy(this.movController.cameraMat3); 
         }
 
         // 1. Check for "Dirty" state
@@ -511,7 +517,8 @@ export class RenderSkySun {
  
         // 2. Update Global Uniforms for dynamic passes
         const elapsed = this.timer.getElapsed();
-
+        
+        
         this.passes.globalUniforms.iTime.value = elapsed;
         this.passes.globalUniforms.iFrame.value++; // Increment global frame counter 
 

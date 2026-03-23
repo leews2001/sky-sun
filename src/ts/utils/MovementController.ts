@@ -18,11 +18,41 @@ export class MovementController {
     private readonly _qYaw = quat.create();
     private readonly _qRoll = quat.create();
     private readonly cameraQuat = quat.create(); // identity
+
+    private _idleTime = 0;
+
+    public applyIdleMotion(deltaTime: number) {
+        this._idleTime += deltaTime;
+
+        // 1. Breathing (Up/Down) - ~0.25Hz (1 breath every 4s)
+        const breath = Math.sin(this._idleTime * 1.5) * 0.0001;
+
+        // 2. Head Drift (Wandering)
+        const driftYaw = Math.cos(this._idleTime * 0.7) * 0.0001;
+        // half of breathing pitch
+        const driftPitch = Math.sin(this._idleTime * 0.4) * 0.00005;
+
+        // 3. Natural Micro-Roll
+        const microRoll = Math.sin(this._idleTime * 1.1) * 0.00008;
+
+        // 4. Random Jitter (Muscle twitch)
+        const jitter = (Math.random() - 0.5) * 0.00025;
+
+        // Inject these into your update logic
+        // You can pass these into your existing update() as deltas
+        this.update(
+            breath + driftPitch + jitter, // dPitch
+            jitter* 1.21,//driftYaw,                     // dYaw
+            jitter*1.03 //microRoll                     // dRoll
+        );
+    }
+
     public euler: { roll: number; pitch: number; yaw: number } = {
         roll: 0,
         pitch: 0,
         yaw: 0,
     };
+    
     
 
   constructor() {
