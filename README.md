@@ -96,10 +96,10 @@ Multiplication of small floats leads to precision loss faster than addition. Whi
     \sigma = \text{cross section (m²)}
     ```
     Example (strong haze):
-    ```math
-    σ_{sca} ≈ 1e^{-22},\\ N ≈ 1e^{20}\\ \Rightarrow\beta \approx 10^{-2}
-    ```
-    
+    $$\begin{aligned}
+        σ_{sca} ≈ 1e^{-22},\\ N ≈ 1e^{20}\\ \Rightarrow\beta \approx 10^{-2}
+    \end{aligned}$$
+
     Example (clean air):
     ```math
     σ_{sca} ≈ 1e^{-22},\\ N ≈ 1e^{17}\\ \Rightarrow\beta \approx 10^{-9}
