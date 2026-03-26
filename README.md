@@ -47,3 +47,65 @@ Multiplication of small floats leads to precision loss faster than addition. Whi
 
 ## Shader: Scattering
 
+
+
+
+## Definitions
+
+- __Scattering cross section $\sigma_{\text{sca}}$:__ \
+    Denotes how much light gets redirected.
+
+    | $σ_{sca} $| Effect |
+    | :----------- | ------------: |
+    | low     | crisp, dark sky      |
+    | medium  | soft haze|
+    | high | milky white sky|
+
+ 
+
+
+- __Absorption cross section $\sigma_{\text{abs}}$:__ \
+    how much light gets destroyed (converted to heat). This is specially wavelength-dependent
+
+    | $σ_{abs} $| Effect |
+    | :----------- | ------------: |
+    | low     | bright sky |
+    | high  | dim / dirty sky |
+    | blue-heavy absorption | reddish/orange tones|
+
+- __Extinction__: $\sigma_{\text{ext}} = \sigma_{\text{sca}} + \sigma_{\text{abs}}$.
+- __Single scattering albedo__:
+    ```math
+    \omega = \frac{\sigma_{scr}}{ \sigma_{scr}+ \sigma_{abs}}
+    ```
+
+
+    | $\omega$| Look |
+    | :----------- | ------------: |
+    | $\approx 1$     | bright, white haze |
+    | $\approx 0.5$ | muted, grey|
+    | low| dark, smoky|
+
+- __Probability per meter that light interacts__:
+    ```math
+    \beta = N \cdot \sigma
+    ```
+    where:
+    ```math
+    N = \text{particle density (m⁻³)}\\
+    \sigma = \text{cross section (m²)}
+    ```
+    Example (strong haze):
+    ```math
+    σ_{sca} ≈ 1e^{-22},\\ N ≈ 1e^{20}\\ \Rightarrow\beta \approx 10^{-2}
+    ```
+    
+    Example (clean air):
+    ```math
+    σ_{sca} ≈ 1e^{-22},\\ N ≈ 1e^{17}\\ \Rightarrow\beta \approx 10^{-9}
+    ```
+
+
+# References
+
+https://www.youtube.com/watch?v=H6wX-ExkoYQ
