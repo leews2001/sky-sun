@@ -218,9 +218,7 @@ export class RenderSkySun {
                 .decimals(2)
                 .name(' ▪ wind')
                 .listen()
-                .onChange((val: number) => { 
-                    this.updateStateUniforms();
-                })
+                .onChange(this.syncAllUniforms.bind(this))
         );
 
         //---
