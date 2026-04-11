@@ -178,3 +178,67 @@ export function createFallbackTexture(): THREE.Texture {
   tex.needsUpdate = true;
   return tex;
 }
+
+
+//--- BLUE NOISE GENERATION (for testing) ---
+
+/**
+ * Generates a Blue Noise buffer using a simplified Void-and-Cluster approach.
+ * Returns a Uint8Array suitable for a 2D texture.
+ */
+export function generateBlueNoise(size: number = 128): Uint8Array {
+    const totalPixels = size * size;
+    const data = new Uint8Array(totalPixels);
+    const binaryMap = new Int8Array(totalPixels); // 1 if pixel is set, 0 otherwise
+
+    // 1. Seed with very few random points
+    const seedCount = Math.floor(totalPixels * 0.01);
+    for (let i = 0; i < seedCount; i++) {
+        const idx = Math.floor(Math.random() * totalPixels);
+        binaryMap[idx] = 1;
+    }
+
+    // 2. Void and Cluster loop
+    // We assign values 0-255 based on when a "void" is filled
+    for (let i = 0; i < totalPixels; i++) {
+        let bestVoidIdx = -1;
+        let minDensity = Infinity;
+
+        // Find the "deepest void" (the point furthest from any current 1s)
+        // In a real implementation, you'd use a Gaussian-weighted density map here.
+        // For brevity, we search for the loneliest pixel:
+        for (let j = 0; j < totalPixels; j++) {
+            if (binaryMap[j] === 0) {
+                const density = calculateDensity(j, binaryMap, size);
+                if (density < minDensity) {
+                    minDensity = density;
+                    bestVoidIdx = j;
+                }
+            }
+        }
+
+        binaryMap[bestVoidIdx] = 1;
+        data[bestVoidIdx] = Math.floor((i / totalPixels) * 255);
+    }
+
+    return data;
+}
+
+// Simple Gaussian-like density check
+function calculateDensity(idx: number, map: Int8Array, size: number): number {
+    const x = idx % size;
+    const y = Math.floor(idx / size);
+    let density = 0;
+    const radius = 8; // Sigma for the Gaussian
+
+    for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+            const nx = (x + dx + size) % size;
+            const ny = (y + dy + size) % size;
+            if (map[ny * size + nx] === 1) {
+                density += Math.exp(-(dx * dx + dy * dy) / (2 * 1.5 * 1.5));
+            }
+        }
+    }
+    return density;
+}

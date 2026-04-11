@@ -1,0 +1,28 @@
+# General behavior for the AI assistant
+have_fun: false
+
+# Memory and Context Configuration
+memory_config:
+  disabled: false
+
+# Code Review Settings
+code_review:
+  disable: false
+  # Set to LOW for Three.js to catch performance bottlenecks (e.g., in requestAnimationFrame)
+  comment_severity_threshold: LOW
+  max_review_comments: 50
+
+# Pull Request behaviors (if using GitHub/GitLab integration)
+pull_request_opened:
+  summary: true
+  code_review: true
+  include_drafts: false
+
+# Crucial for Three.js: Exclude heavy non-code assets to save context space
+ignore_patterns:
+  - "**/node_modules/**"
+  - "**/dist/**"
+  - "**/build/**"
+  - "**/public/assets/models/**"  # Ignore large .gltf, .obj, .fbx files
+  - "**/public/assets/textures/**" # Ignore large .jpg, .png, .hdr textures
+  - "**/*.bin"                     # Binary data often paired with GLTF

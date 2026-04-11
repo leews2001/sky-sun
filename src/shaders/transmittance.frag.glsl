@@ -8,18 +8,12 @@
  * Ref: "Precomputed Atmospheric Scattering", Eric Bruneton and Fabrice Neyret (2008).
  */
 
+
 uniform float fAerosolTurbidity;
-uniform float iTime;
 uniform vec2 iResolution;
 
 #include "atmosphere.glsl"
 #include "math.glsl"
-/**
- * Maps UV coordinates to internal atmospheric parameters.
- * Bruneton usually maps: 
- * x -> Cosine of View Zenith Angle (mu)
- * y -> Altitude (r)
- */
 
 void main()
 {

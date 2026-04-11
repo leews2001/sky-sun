@@ -1,3 +1,7 @@
+#define LARGE_NUMBER 1e20
+#define EPSILON 1e-6
+
+
 vec2 quadratic_solve(float a,float b,float c)
 {
     float d=b*b-a*c;
@@ -24,6 +28,46 @@ float rayPerpendicularDistance(vec3 ro, vec3 rd,  float radius)
     float distance_to_surface = sqrt(d2) - radius; 
     return distance_to_surface;
 }
+
+// https://www.scratchapixel.com/lessons/3d-basic-rendering/minimal-ray-tracer-rendering-simple-shapes/ray-plane-and-ray-disk-intersection
+float PlaneIntersection(vec3 rayOrigin, vec3 rayDirection, vec3 planeOrigin, vec3 planeNormal, out vec3 normal) 
+{ 
+    float t = -1.0f;
+    normal = planeNormal;
+    float denom = dot(-planeNormal, rayDirection); 
+    if (denom > EPSILON) { 
+        vec3 rayToPlane = planeOrigin - rayOrigin; 
+        return dot(rayToPlane, -planeNormal) / denom; 
+    } 
+ 
+    return t; 
+} 
+
+float SphereIntersection(
+    in vec3 rayOrigin, 
+    in vec3 rayDirection, 
+    in vec3 sphereCenter, 
+    in float sphereRadius, 
+    out vec3 normal)
+{
+      vec3 eMinusC = rayOrigin - sphereCenter;
+      float dDotD = dot(rayDirection, rayDirection);
+
+      float discriminant = dot(rayDirection, (eMinusC)) * dot(rayDirection, (eMinusC))
+         - dDotD * (dot(eMinusC, eMinusC) - sphereRadius * sphereRadius);
+
+      if (discriminant < 0.0) 
+         return -1.0;
+
+      float firstIntersect = (dot(-rayDirection, eMinusC) - sqrt(discriminant))
+             / dDotD;
+      
+      float t = firstIntersect;
+    
+      normal = normalize(rayOrigin + rayDirection * t - sphereCenter);
+      return t;
+}
+
 
 /*
  * Returns the distance between ro and the first intersection with the sphere

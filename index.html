@@ -9,21 +9,36 @@
   <body>
     <div class="container">
     <canvas id="webgl"></canvas>
-    <div id="help-menu-sky" class="help-menu hidden">
-      <h1 style="text-align: center; color: yellow; margin-bottom:0px">SKY CONTROLS</h1>
-      <hr>
-      <ul>
-        <li><b>A/D</b> — Yaw</li>
-        <li><b>W/S</b> — Pitch</li>
-        <li><b>Q/E</b> — Roll</li>
-        <li><b>🐁</b> — Click & Drag Sun</li>
-        <li><b>Esc</b> — Toggle This Menu</li>
-        <li><b>H</b> — Toggle Stats Panel</li>
-        <li><b>V</b> — Toggle Vignette</li>
-        <li><b>C</b> — Toggle CRT/VHS Effect</li>
-        <li><b>Z</b> — Toggle Chroma Distort</li>
-      </ul>
-    </div>   
+      <!-- UI LAYER -->
+      <div id="ui-root">
+      <!-- TITLE SCREEN -->
+      <div id="title-screen" class="screen"> 
+        <h2 id="subtitle">wolf's workshop ▪ 狼工房</h2>
+        <div id="title-text">
+          <span class="layer r">Le Vent et Le Soleil</span>
+          <span class="layer g">Le Vent et Le Soleil</span>
+          <span class="layer b">Le Vent et Le Soleil</span>
+          <span class="base">Le Vent et Le Soleil</span>
+        </div>
+        <button id="start-btn">[ enter ▪ 入る ]</button>
+      </div>
+      <!-- HELP MENU (existing, just move inside UI layer) -->
+      <div id="help-menu-sky" class="help-menu hidden">
+        <h1 style="text-align: center; color: yellow; margin-bottom:0px">SKY CONTROLS</h1>
+        <hr>
+        <ul>
+          <li><b>A/D</b> — Yaw</li>
+          <li><b>W/S</b> — Pitch</li>
+          <li><b>Q/E</b> — Roll</li>
+          <li><b>🐁</b> — Click & Drag Sun</li>
+          <li><b>Esc</b> — Toggle This Menu</li>
+          <li><b>H</b> — Toggle Stats Panel</li>
+          <li><b>V</b> — Toggle Vignette</li>
+          <li><b>C</b> — Toggle CRT/VHS Effect</li>
+          <li><b>Z</b> — Toggle Chroma Distort</li>
+        </ul>
+      </div>   
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </div>
   </body>

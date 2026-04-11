@@ -14,11 +14,17 @@
  * "Physically Based Sky", Frostbite
  */
  
+
+uniform float iTime;
+uniform int iFrame;
 uniform bool bEnableMultipleScattering; // if true, use spectral rendering
 uniform float fEyeAttitude; // in km
 uniform float fSunElevationDeg; // in degrees, -10.0 - 90.0
 uniform float fAerosolTurbidity; // aerosol turbidity, 0.0 - 1.0
-uniform float iTime;
+
+uniform sampler2D uBlueNoiseTex; // 512x512 Blue Noise Texture
+uniform float fWindIntensity;   // 0.0 to 1.0
+
 uniform vec2 iResolution;
 uniform sampler2D iChannel0; // from Buffer A , Trnsmittance LUT
 
@@ -26,13 +32,43 @@ uniform sampler2D iChannel0; // from Buffer A , Trnsmittance LUT
 #include "atmosphere.glsl"
 #include "math.glsl"
 
+
+// --- NEW: Procedural Volumetric Dust/Fog ---
+// Reusing the triangle noise logic we discussed for "swirling" sand/dust
+float tri(in float x){return abs(fract(x)-.5);}
+vec3 tri3(in vec3 p){return vec3( tri(p.z+tri(p.y)), tri(p.z+tri(p.x)), tri(p.y+tri(p.x)));}
+
+float getDustTurbulence(vec3 p) {
+    
+    p *= 0.002; // Scale of the dust clumps
+    //float speed = iTime * 0.067* fWindIntensity * fWindIntensity; // Speed of dust movement. Adjust as needed.
+    //float speed = iTime *  (0.05+ smoothstep(0.0, 10., fWindIntensity));
+    // if (fWindIntensity < 0.1) {
+    //     return 0.0; // No dust if wind is negligible
+    // }
+
+    float speed = iTime * 0.057* smoothstep(-0.15, 1.15, fWindIntensity);
+    float rz = 0.;
+    float z = 1.43;
+    for (float i=0.; i<3.; i++ ) { // 3 octaves is enough for background dust
+        vec3 dg = tri3(p * 2.0);
+        p += (dg + speed);
+        rz += (tri(p.x + tri(p.y + tri(p.z)))) / z;
+        z *= 1.5; p *= 1.2;
+    }
+   
+    return rz;
+}
+
+
 /**
  *   
  */
 vec4 compute_inscattering(
     vec3 ray_origin, 
     vec3 ray_dir, 
-    float t_max )
+    float t_max,
+    float dither )
 {
     vec3 sun_dir = get_sun_direction_from_elevation(fSunElevationDeg);
 
@@ -61,9 +97,18 @@ vec4 compute_inscattering(
     vec4 accumulation = vec4(0.0);
     vec4 total_transmittance = vec4(1.0);
 
+    //dither = 128.;
+    //dither = dither/ 255.0; // Disable jitter for now to compare with reference. Re-enable for better quality (removes banding)
+    //dither = dither-0.5; // Center around zero so we jitter both forward and backward along the ray
     for (int i = 0; i < IN_SCATTERING_STEPS; ++i) 
     {
+        // 1. JITTERED SAMPLING (The secret to removing banding)
+        // We use the Blue Noise dither to offset the sample position along the ray
+        //float t = (float(i+1) + dither) * dt;
+
         vec3 current_pos = ray_origin + step_vec * (float(i) + 0.5);
+        //vec3 current_pos = ray_origin + ray_dir * t;
+
 
         float r = length(current_pos);
         float altitude = r - EARTH_RADIUS;
@@ -83,6 +128,16 @@ vec4 compute_inscattering(
             mole_scatt, 
             extinction);
 
+        // --- DUST INTEGRATION ---
+        if (fWindIntensity > 0.1) {
+            float dustHeightFade = smoothstep(1.5,.0, altitude); // Dust stays near ground (1.5km)
+            float noise = getDustTurbulence(current_pos);
+            //noise = noise * 2.0 - 1.5; // Normalize to [-1, 1]
+            vec4 dustExt = vec4(0.2, 0.3, 0.4, 1.0) * fWindIntensity * noise * dustHeightFade;
+            extinction += dustExt;
+            aero_scatt += dustExt * 0.7; // Dust scatters partially
+        }
+
         // 2. Sample Transmittance from LUT (Sun to current point)
         float sun_cos_theta = dot(up, sun_dir);
         float norm_alt = altitude / ATMOSPHERE_THICKNESS;
@@ -99,8 +154,8 @@ vec4 compute_inscattering(
         vec4 direct_s = (mole_scatt * phase_mol + aero_scatt * phase_aero) * light_transmittance;
         vec4 indirect_s = (mole_scatt + aero_scatt) * multi_scatter;
         vec4 S = (direct_s + indirect_s) * sun_spectral_irradiance;
-        float t = (float(i) + 0.5) * dt;
-        vec3 x_t = ray_origin + ray_dir * t;
+        // float t = (float(i) + 0.5) * dt;
+        // vec3 x_t = ray_origin + ray_dir * t;
 
         // 5. Analytical Integration for current segment
         vec4 step_transmittance = exp(-extinction * dt);
@@ -120,6 +175,14 @@ vec4 compute_inscattering(
 void main()
 {
     vec2 uv = gl_FragCoord.xy / iResolution.xy;
+
+
+    // --- BLUE NOISE SETUP ---
+    // We use the Golden Ratio boiling dither we discussed
+    float goldenRatio = 1.61803398875;
+    vec2 noiseOffset = fract(vec2(float(iFrame) * goldenRatio, float(iFrame) * goldenRatio * goldenRatio)) * 512.0;
+    float blueNoise = texture(uBlueNoiseTex, (gl_FragCoord.xy + noiseOffset) / 512.0).r;
+
 
     // Mapping UV to Spherical Coordinates
     float azimuth = 2.0 * PI * uv.x;
@@ -167,14 +230,23 @@ void main()
         return;
     }
 
-    vec4 L = compute_inscattering(start_pos, ray_dir, total_dist);
+    // Run inscattering with blue noise jitter
+    vec4 L = compute_inscattering(start_pos, ray_dir, total_dist, blueNoise);
 
     // Final Color Output
+
+    vec3 color;
 #if ENABLE_SPECTRAL == 1
-    gl_FragColor = vec4(linear_srgb_from_spectral_samples(L), 1.0);
+    color = linear_srgb_from_spectral_samples(L);
 #else
-    gl_FragColor = vec4(L.rgb, 1.0);
+    color = L.rgb;
 #endif
+
+    // --- FINAL OUTPUT DITHERING ---
+    // This removes 8-bit quantization banding in the dark sky gradients
+    //color += (blueNoise - 0.5) * (1.0 / 255.0);
+
+    gl_FragColor = vec4(color, 1.0);
 
     return;
 }
