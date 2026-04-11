@@ -1,4 +1,4 @@
-# The Sun, the Sky, and the Horizon
+# Le Vent et le Soleil
 ![Local image](./images/title.jpeg)
 Experiment.
 
@@ -96,9 +96,9 @@ Multiplication of small floats leads to precision loss faster than addition. Whi
     \sigma = \text{cross section (m²)}
     ```
     Example (strong haze):
-    $$\begin{aligned}
-        σ_{sca} ≈ 1e^{-22},\\ N ≈ 1e^{20}\\ \Rightarrow\beta \approx 10^{-2}
-    \end{aligned}$$
+    \begin{aligned}
+    $σ_{sca} ≈ 1e^{-22},\\ N ≈ 1e^{20}\\ \Rightarrow\beta \approx 10^{-2}$
+    \end{aligned}
 
     Example (clean air):
     ```math
