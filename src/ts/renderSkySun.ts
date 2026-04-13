@@ -112,8 +112,7 @@ export class RenderSkySun {
         // Initialize UI Logic
         // instance.ui = new AtmosphereUI(
         //     instance.gui, 
-        //     instance.guiSettings, 
-        //     instance.state, 
+        //     instance.settings,  
         //     instance.movController,
         //     () => instance.updateStateUniforms()
         // );
@@ -150,8 +149,6 @@ export class RenderSkySun {
         // Apply GUI Settings
         sky.bEnableACES.value = this.settings.enableACES;
 
-        //sky.fCameraRoll.value = this.guiSettings.CamRoll;
-        //sky.fCameraYaw.value = this.guiSettings.CamYaw;
         sky.fCameraPitch.value = this.settings.camPitch;
         sky.fCameraFov.value = this.settings.camFov;
 
@@ -176,35 +173,44 @@ export class RenderSkySun {
         bokeh.fGrainWeight.value = this.settings.grainWeight;
 
         // Apply Engine State
-        this.updateStateUniforms();
-    }
+        //this.updateStateUniforms();
 
-    private updateStateUniforms(): void {
-
-        //-- get all relevant materials and their uniforms
-        const mats = this.passes.materials;
-        const sky = mats.get('skyImage')?.uniforms;
-        const scat = mats.get('scattering')?.uniforms;
-        const trans = mats.get('transmittance')?.uniforms;
-
-        if (!sky || !scat || !trans) {
-            console.warn("One or more shader uniforms are missing. Cannot update state uniforms.");
-            return;
-        }
         [sky, scat, trans].forEach(u => u.fAerosolTurbidity.value = this.settings.aerosol);
         [sky, scat].forEach(u => u.fSunElevationDeg.value = this.settings.sunElevation);
         [sky, scat].forEach(u => u.fEyeAttitude.value = this.settings.eyeAttitude);
          
-        // sky.fCameraYaw.value = this.guiSettings.CamYaw;
-        // sky.fCameraPitch.value = this.guiSettings.CamPitch;
+ 
         sky.fCameraFov.value = this.settings.camFov;
-        // sky.uCameraMat.value.copy(this.movController.cameraMat3);
     
         //-- Directly setting the value to the mat3 (Float32Array)
         sky.uCameraMat.value = this.movController.cameraMat3;
-        
-        return;
     }
+
+    // private updateStateUniforms(): void {
+
+    //     //-- get all relevant materials and their uniforms
+    //     const mats = this.passes.materials;
+
+    //     const sky = mats.get('skyImage')?.uniforms;
+    //     const scat = mats.get('scattering')?.uniforms;
+    //     const trans = mats.get('transmittance')?.uniforms;
+
+    //     if (!sky || !scat || !trans) {
+    //         console.warn("One or more shader uniforms are missing. Cannot update state uniforms.");
+    //         return;
+    //     }
+    //     [sky, scat, trans].forEach(u => u.fAerosolTurbidity.value = this.settings.aerosol);
+    //     [sky, scat].forEach(u => u.fSunElevationDeg.value = this.settings.sunElevation);
+    //     [sky, scat].forEach(u => u.fEyeAttitude.value = this.settings.eyeAttitude);
+         
+ 
+    //     sky.fCameraFov.value = this.settings.camFov;
+    
+    //     //-- Directly setting the value to the mat3 (Float32Array)
+    //     sky.uCameraMat.value = this.movController.cameraMat3;
+        
+    //     return;
+    // }
  
     private autoId(name:string, controller: any): any {
     const input = controller.domElement.querySelector('input, select, checkbox');
@@ -222,7 +228,8 @@ export class RenderSkySun {
 
         //--- ATMOSPHERE CONTROLS
         const atm = this.gui.addFolder('ATMOSPHERE');
-        atm.add(this.settings, 'enableMultipleScattering').name(' ▪ m. scatter').onChange(this.syncAllUniforms.bind(this));
+        atm.add(this.settings, 'enableMultipleScattering')
+            .name(' ▪ m. scatter');
 
 
         this.autoId(
@@ -231,57 +238,51 @@ export class RenderSkySun {
                 .decimals(1)
                 .name(' ▪ aerosol')
                 .listen()
-                .onChange((val: number) => {
-                    this.settings.aerosol = val;   
-                    this.updateStateUniforms();
-                })
         );
 
-        atm.add(this.settings, 'enableDust').name(' ▪ dust').onChange(this.syncAllUniforms.bind(this));
+        atm.add(this.settings, 'enableDust').name(' ▪ dust');
+
 
         this.autoId(
             'windintensity',
             atm.add(this.settings, 'windIntensity', .0, 1.0, 0.02)
                 .decimals(2)
                 .name(' ▪ wind')
-                .listen()
-                .onChange(this.syncAllUniforms.bind(this))
         );
 
         //---
         const sun = this.gui.addFolder('SUN EFFECT');
-        sun.add(this.settings, 'enableRefract').name(' ▪ refract').onChange(this.syncAllUniforms.bind(this));
-        sun.add(this.settings, 'enableHeatHaze').name(' ▪ heat haze').onChange(this.syncAllUniforms.bind(this));
-        sun.add(this.settings, 'enableLimbDarken').name(' ▪ limb dark').onChange(this.syncAllUniforms.bind(this));
+        sun.add(this.settings, 'enableRefract').name(' ▪ refract');
+
+        sun.add(this.settings, 'enableHeatHaze').name(' ▪ heat haze');
+        
+        sun.add(this.settings, 'enableLimbDarken').name(' ▪ limb dark');
 
         this.autoId( 'sunelev',
             sun.add(this.settings, 'sunElevation', -20, 89,0.1)
-                .decimals(1).name(' ▪ elev (deg)')
-                .listen().onChange(this.updateStateUniforms.bind(this))
+                .decimals(1)
+                .name(' ▪ elev (deg)').listen()
         );
         
         //--- 
         const lens = this.gui.addFolder('LENS EFFECT');
-        lens.add(this.settings, 'enableFlare').name(' ▪ flare').onChange(this.syncAllUniforms.bind(this));
-        lens.add(this.settings, 'enableLensDirt').name(' ▪ dirt').onChange(this.syncAllUniforms.bind(this));
+        lens.add(this.settings, 'enableFlare').name(' ▪ flare');
+        lens.add(this.settings, 'enableLensDirt').name(' ▪ dirt');
 
         this.autoId('lensdirtweight',
             lens.add(this.settings, 'lensDirtWeight', 0, 2, 0.1)
                 .decimals(1)
                 .name(' ▪ dirt wgt.')
-                .onChange(this.syncAllUniforms.bind(this))
         );
         this.autoId('lensdirtstep0',
             lens.add(this.settings, 'lensDirtStep0', 0, 1, 0.1)
                 .decimals(1)
                 .name(' ▪ dirt step0')
-                .onChange(this.syncAllUniforms.bind(this))
         );
         this.autoId('lensdirtstep1',
             lens.add(this.settings, 'lensDirtStep1', 0, 5, 0.1)
                 .decimals(1)
                 .name(' ▪ dirt step1')
-                .onChange(this.syncAllUniforms.bind(this))
         );
 
         //---
@@ -296,39 +297,26 @@ export class RenderSkySun {
             .onChange((val: number) => {
                 // 1. Calculate the delta from the LAST KNOWN STATE
                 let delta = val - this.settings._prevRoll;
-                
-                console.log(`[silder] roll: ${val.toFixed(1)}°, prev. roll: ${this.settings._prevRoll.toFixed(1)}°, delta: ${delta.toFixed(1)}°`);
-                
+                 
                 // 2. Handle the -180/180 wrap-around for the slider
                 if (delta > 180) delta -= 360;
                 if (delta < -180) delta += 360;
-            
                 
                 // 3. Update the controller (The math core)
                 const euler = this.movController.update(0, 0, delta* Math.PI/180.0); // apply delta in radians
     
-                console.log(`[slider] Updated camera  Roll: ${euler.roll.toFixed(2)}`);
+                //console.log(`[slider] Updated camera  Roll: ${euler.roll.toFixed(2)}`);
 
                 // 4. Update the GUI state and the comparison value
                 // We sync EVERYTHING back to the controller's output
-                
-                this.settings.camPitch = euler.pitch;
-                this.settings.camRoll = euler.roll;
-                this.settings.camYaw = euler.yaw;
-
-                // This is the anchor for the NEXT delta calculation
-                this.settings._prevRoll = euler.roll; // update stored value
-                this.settings._prevPitch = euler.pitch; // update stored value
-                this.settings._prevYaw = euler.yaw; // update stored value
-
-                // 5. Actually trigger the uniform update
-                this.updateStateUniforms();
+                this.syncRotation(euler); // Atomic update
 
             })
         );
 
         this.autoId('camyaw',
-            cam.add(this.settings, 'camYaw', -180, 180, 0.1).decimals(1).name(' ▪ yaw').listen()
+            cam.add(this.settings, 'camYaw', -180, 180, 0.1).decimals(1).name(' ▪ yaw')
+                .listen()
                 .onChange((val: number) => {
                     let delta = val - this.settings._prevYaw;
                     // Normalize delta into [-180, 180]
@@ -337,47 +325,27 @@ export class RenderSkySun {
 
                 
                     const euler = this.movController.update( 0, delta* Math.PI/180.0, 0); 
+                    this.syncRotation(euler); // Atomic update
 
-                    this.settings.camPitch = euler.pitch;
-                    this.settings.camRoll = euler.roll;
-                    this.settings.camYaw = euler.yaw;
-
-                    // This is the anchor for the NEXT delta calculation
-                    this.settings._prevRoll = euler.roll; // update stored value
-                    this.settings._prevPitch = euler.pitch; // update stored value
-                    this.settings._prevYaw = euler.yaw; // update stored value
-
-                    // 5. Actually trigger the uniform update
-                    this.updateStateUniforms();
                 })
             );
         
         this.autoId('campitch',
-            cam.add(this.settings, 'camPitch', -180, 180, 0.1).decimals(1).name(' ▪ pitch').listen()
+            cam.add(this.settings, 'camPitch', -180, 180, 0.1).decimals(1).name(' ▪ pitch')
+                .listen()
                 .onChange((val: number) => {
                     let delta = val - this.settings._prevPitch;
 
-                    console.log(`[slider] Raw pitch input: ${val.toFixed(1)}°, Previous pitch: ${this.settings._prevPitch.toFixed(1)}°, Delta: ${delta.toFixed(1)}°`);
+                    console.log(`[slider] pitch input: ${val.toFixed(1)}°, prev pitch: ${this.settings._prevPitch.toFixed(1)}°, delta: ${delta.toFixed(1)}°`);
                     // Normalize delta into [-180, 180]
                     if (delta > 180) delta -= 360;
                     if (delta < -180) delta += 360;
 
                     
                     const euler = this.movController.update( -delta* Math.PI/180.0, 0, 0); // apply delta in radians
-                    console.log(`[slider] Updated camera Pitch: ${euler.pitch.toFixed(2)}`);
+                    this.syncRotation(euler); // Atomic update
+                    // console.log(`[slider] Updated camera Pitch: ${euler.pitch.toFixed(2)}`);
 
-    
-                    this.settings.camPitch = euler.pitch;
-                    this.settings.camRoll = euler.roll;
-                    this.settings.camYaw = euler.yaw;
-
-                    // This is the anchor for the NEXT delta calculation
-                    this.settings._prevRoll = euler.roll; // update stored value
-                    this.settings._prevPitch = euler.pitch; // update stored value
-                    this.settings._prevYaw = euler.yaw; // update stored value
-
-                    // 5. Actually trigger the uniform update
-                    this.updateStateUniforms();
                 })
             );
             
@@ -385,7 +353,6 @@ export class RenderSkySun {
         this.autoId('camfov',
             cam.add(this.settings, 'camFov', 5, 170).name(' ▪ fOV').decimals(0).listen()
                 .onChange( (val: number) => {
-                    this.updateStateUniforms.bind(this);
                     this.movController.camFOV = val;
             })
         );
@@ -394,29 +361,32 @@ export class RenderSkySun {
             cam.add(this.settings, 'eyeAttitude', 0.02, 64, 0.1).decimals(2).name(' ▪ altitude').listen()
                 .onChange( (val: number) => {
                     this.movController.camYPos = val;
-                    this.updateStateUniforms.bind(this);
             })
         );
 
         //---
         const pp = this.gui.addFolder('POST-PROCESS');
-        pp.add(this.settings, 'enableDither').name(' ▪ dither').onChange(this.syncAllUniforms.bind(this));
-        pp.add(this.settings, 'enableGrain').name(' ▪ grain').onChange(this.syncAllUniforms.bind(this));
+        pp.add(this.settings, 'enableDither').name(' ▪ dither');
+        pp.add(this.settings, 'enableGrain').name(' ▪ grain');
 
         this.autoId('grainweight',
-            pp.add(this.settings, 'grainWeight', 0, 3, 0.1).name(' ▪ grain wgt.').decimals(1).onChange(this.syncAllUniforms.bind(this))
+            pp.add(this.settings, 'grainWeight', 0, 3, 0.1)
+            .name(' ▪ grain wgt.')
+            .decimals(1)
         );
         //---
         const tone= this.gui.addFolder('TONE MAPPING');
-        tone.add(this.settings, 'enableACES').name(' ▪ aces').onChange(this.syncAllUniforms.bind(this));
+        tone.add(this.settings, 'enableACES').name(' ▪ aces');
 
         //---
 
         const debug = this.gui.addFolder('DEBUG');
-        debug.add(this.settings, 'enableCheckerboard').name(' ▪ checkerboard').onChange(this.syncAllUniforms.bind(this));
+        debug.add(this.settings, 'enableCheckerboard').name(' ▪ checkerboard');
         
         this.autoId('checkerboardscale',
-            debug.add(this.settings, 'checkerboardScale', 1.0, 200.0, 1).decimals(0).name(' ▪ scale').listen().onChange(this.syncAllUniforms.bind(this))
+            debug.add(this.settings, 'checkerboardScale', 1.0, 200.0, 1)
+            .decimals(0)
+            .name(' ▪ scale')
         );
 
         //---
@@ -433,13 +403,9 @@ export class RenderSkySun {
                 if (key === 'escape') {
                     helpMenu.classList.toggle('hidden');
                 }
-                // // Bitmask toggles
-                // if (key === 'b') this.shaderFlags ^= FLAGS.DIRTY_LENS;
-                // if (key === 'l') this.shaderFlags ^= FLAGS.LENSFLARE;
             }
         });
 
-        //window.addEventListener('keyup', (e) => this.keysPressed[e.key.toLowerCase()] = false);
 
         window.addEventListener('keyup', (e) => {
             const key = e.key.toLowerCase();
@@ -497,8 +463,10 @@ export class RenderSkySun {
         this.settings._lastElevation = this.settings.sunElevation;
         this.settings._lastAttitude = this.settings.eyeAttitude;
 
-        // 3. Main Dynamic Pass
-        this.updateStateUniforms();
+        //------
+        this.syncAllUniforms(); // Ensure all uniforms are up-to-date before the main render
+
+        // 3. Main Dynamic Pass 
         this.passes.globalUniforms.iTime.value = this.timer.getElapsed();
         this.passes.globalUniforms.iFrame.value++;
 
@@ -522,6 +490,18 @@ export class RenderSkySun {
         this.renderer.render(this.scene, this.camera);
 
         return;
+    }
+
+    private syncRotation(euler: { pitch: number, roll: number, yaw: number }) {
+        // Update the UI-bound settings
+        this.settings.camPitch = euler.pitch;
+        this.settings.camRoll = euler.roll;
+        this.settings.camYaw = euler.yaw;
+
+        // Update the math anchors
+        this.settings._prevPitch = euler.pitch;
+        this.settings._prevRoll = euler.roll;
+        this.settings._prevYaw = euler.yaw;
     }
 
     private handleInput(dt: number): void {
