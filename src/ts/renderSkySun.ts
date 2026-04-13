@@ -3,7 +3,7 @@ import GUI from 'lil-gui';
 import { setupKeyControls } from './utils/KeyControls';
 import { MovementController } from './utils/MovementController';
 import { RenderManager } from './renderMng';
-//import { AtmosphereUI } from './uiSkySun';
+import { AtmosphereUI } from './uiSkySun';
 
 
 // Define your control set as a constant or class property
@@ -16,7 +16,7 @@ export class RenderSkySun {
     private scene: THREE.Scene;
     private quad: THREE.Mesh;
     private gui: GUI = new GUI();
-    //private ui!: AtmosphereUI;
+    private ui!: AtmosphereUI;
 
     private timer = new THREE.Timer();
     
@@ -110,15 +110,14 @@ export class RenderSkySun {
         });
 
         // Initialize UI Logic
-        // instance.ui = new AtmosphereUI(
-        //     instance.gui, 
-        //     instance.settings,  
-        //     instance.movController,
-        //     () => instance.updateStateUniforms()
-        // );
-        // instance.ui.init();
+        instance.ui = new AtmosphereUI(
+            instance.gui, 
+            instance.settings,  
+            instance.movController
+        );
+        instance.ui.init();
 
-        instance.initGui();
+        //instance.initGui();
         instance.syncAllUniforms();
         
         
@@ -185,213 +184,7 @@ export class RenderSkySun {
         //-- Directly setting the value to the mat3 (Float32Array)
         sky.uCameraMat.value = this.movController.cameraMat3;
     }
-
-    // private updateStateUniforms(): void {
-
-    //     //-- get all relevant materials and their uniforms
-    //     const mats = this.passes.materials;
-
-    //     const sky = mats.get('skyImage')?.uniforms;
-    //     const scat = mats.get('scattering')?.uniforms;
-    //     const trans = mats.get('transmittance')?.uniforms;
-
-    //     if (!sky || !scat || !trans) {
-    //         console.warn("One or more shader uniforms are missing. Cannot update state uniforms.");
-    //         return;
-    //     }
-    //     [sky, scat, trans].forEach(u => u.fAerosolTurbidity.value = this.settings.aerosol);
-    //     [sky, scat].forEach(u => u.fSunElevationDeg.value = this.settings.sunElevation);
-    //     [sky, scat].forEach(u => u.fEyeAttitude.value = this.settings.eyeAttitude);
-         
  
-    //     sky.fCameraFov.value = this.settings.camFov;
-    
-    //     //-- Directly setting the value to the mat3 (Float32Array)
-    //     sky.uCameraMat.value = this.movController.cameraMat3;
-        
-    //     return;
-    // }
- 
-    private autoId(name:string, controller: any): any {
-    const input = controller.domElement.querySelector('input, select, checkbox');
-    if (input) {
-        // Use the property name as a unique ID
-        const id = `gui-${controller._property}-${name.replace(/\s+/g, '-').toLowerCase()}`;
-        input.id = id;
-        input.setAttribute('name', id);
-    }
-    return controller; // Return for chaining
-}
-
-
-    private initGui(): void {
-
-        //--- ATMOSPHERE CONTROLS
-        const atm = this.gui.addFolder('ATMOSPHERE');
-        atm.add(this.settings, 'enableMultipleScattering')
-            .name(' ▪ m. scatter');
-
-
-        this.autoId(
-            'aerosol',
-            atm.add(this.settings, 'aerosol', 0.1, 30.0, 0.1)
-                .decimals(1)
-                .name(' ▪ aerosol')
-                .listen()
-        );
-
-        atm.add(this.settings, 'enableDust').name(' ▪ dust');
-
-
-        this.autoId(
-            'windintensity',
-            atm.add(this.settings, 'windIntensity', .0, 1.0, 0.02)
-                .decimals(2)
-                .name(' ▪ wind')
-        );
-
-        //---
-        const sun = this.gui.addFolder('SUN EFFECT');
-        sun.add(this.settings, 'enableRefract').name(' ▪ refract');
-
-        sun.add(this.settings, 'enableHeatHaze').name(' ▪ heat haze');
-        
-        sun.add(this.settings, 'enableLimbDarken').name(' ▪ limb dark');
-
-        this.autoId( 'sunelev',
-            sun.add(this.settings, 'sunElevation', -20, 89,0.1)
-                .decimals(1)
-                .name(' ▪ elev (deg)').listen()
-        );
-        
-        //--- 
-        const lens = this.gui.addFolder('LENS EFFECT');
-        lens.add(this.settings, 'enableFlare').name(' ▪ flare');
-        lens.add(this.settings, 'enableLensDirt').name(' ▪ dirt');
-
-        this.autoId('lensdirtweight',
-            lens.add(this.settings, 'lensDirtWeight', 0, 2, 0.1)
-                .decimals(1)
-                .name(' ▪ dirt wgt.')
-        );
-        this.autoId('lensdirtstep0',
-            lens.add(this.settings, 'lensDirtStep0', 0, 1, 0.1)
-                .decimals(1)
-                .name(' ▪ dirt step0')
-        );
-        this.autoId('lensdirtstep1',
-            lens.add(this.settings, 'lensDirtStep1', 0, 5, 0.1)
-                .decimals(1)
-                .name(' ▪ dirt step1')
-        );
-
-        //---
-        const cam = this.gui.addFolder('CAMERA');
-        cam.add(this.settings, 'enablebreathing').name(' ▪ breathing');
-
-        this.autoId('camroll',
-        cam.add(this.settings, 'camRoll', -180, 180, 0.1)
-            .decimals(1)
-            .name(' ▪ roll')
-            .listen()
-            .onChange((val: number) => {
-                // 1. Calculate the delta from the LAST KNOWN STATE
-                let delta = val - this.settings._prevRoll;
-                 
-                // 2. Handle the -180/180 wrap-around for the slider
-                if (delta > 180) delta -= 360;
-                if (delta < -180) delta += 360;
-                
-                // 3. Update the controller (The math core)
-                const euler = this.movController.update(0, 0, delta* Math.PI/180.0); // apply delta in radians
-    
-                //console.log(`[slider] Updated camera  Roll: ${euler.roll.toFixed(2)}`);
-
-                // 4. Update the GUI state and the comparison value
-                // We sync EVERYTHING back to the controller's output
-                this.syncRotation(euler); // Atomic update
-
-            })
-        );
-
-        this.autoId('camyaw',
-            cam.add(this.settings, 'camYaw', -180, 180, 0.1).decimals(1).name(' ▪ yaw')
-                .listen()
-                .onChange((val: number) => {
-                    let delta = val - this.settings._prevYaw;
-                    // Normalize delta into [-180, 180]
-                    if (delta > 180) delta -= 360;
-                    if (delta < -180) delta += 360;
-
-                
-                    const euler = this.movController.update( 0, delta* Math.PI/180.0, 0); 
-                    this.syncRotation(euler); // Atomic update
-
-                })
-            );
-        
-        this.autoId('campitch',
-            cam.add(this.settings, 'camPitch', -180, 180, 0.1).decimals(1).name(' ▪ pitch')
-                .listen()
-                .onChange((val: number) => {
-                    let delta = val - this.settings._prevPitch;
-
-                    console.log(`[slider] pitch input: ${val.toFixed(1)}°, prev pitch: ${this.settings._prevPitch.toFixed(1)}°, delta: ${delta.toFixed(1)}°`);
-                    // Normalize delta into [-180, 180]
-                    if (delta > 180) delta -= 360;
-                    if (delta < -180) delta += 360;
-
-                    
-                    const euler = this.movController.update( -delta* Math.PI/180.0, 0, 0); // apply delta in radians
-                    this.syncRotation(euler); // Atomic update
-                    // console.log(`[slider] Updated camera Pitch: ${euler.pitch.toFixed(2)}`);
-
-                })
-            );
-            
-
-        this.autoId('camfov',
-            cam.add(this.settings, 'camFov', 5, 170).name(' ▪ fOV').decimals(0).listen()
-                .onChange( (val: number) => {
-                    this.movController.camFOV = val;
-            })
-        );
-
-        this.autoId('eyeattitude',
-            cam.add(this.settings, 'eyeAttitude', 0.02, 64, 0.1).decimals(2).name(' ▪ altitude').listen()
-                .onChange( (val: number) => {
-                    this.movController.camYPos = val;
-            })
-        );
-
-        //---
-        const pp = this.gui.addFolder('POST-PROCESS');
-        pp.add(this.settings, 'enableDither').name(' ▪ dither');
-        pp.add(this.settings, 'enableGrain').name(' ▪ grain');
-
-        this.autoId('grainweight',
-            pp.add(this.settings, 'grainWeight', 0, 3, 0.1)
-            .name(' ▪ grain wgt.')
-            .decimals(1)
-        );
-        //---
-        const tone= this.gui.addFolder('TONE MAPPING');
-        tone.add(this.settings, 'enableACES').name(' ▪ aces');
-
-        //---
-
-        const debug = this.gui.addFolder('DEBUG');
-        debug.add(this.settings, 'enableCheckerboard').name(' ▪ checkerboard');
-        
-        this.autoId('checkerboardscale',
-            debug.add(this.settings, 'checkerboardScale', 1.0, 200.0, 1)
-            .decimals(0)
-            .name(' ▪ scale')
-        );
-
-        //---
-        return;
-    }
 
     private setupEventListeners(helpMenu: HTMLElement): void {
 
@@ -492,24 +285,12 @@ export class RenderSkySun {
         return;
     }
 
-    private syncRotation(euler: { pitch: number, roll: number, yaw: number }) {
-        // Update the UI-bound settings
-        this.settings.camPitch = euler.pitch;
-        this.settings.camRoll = euler.roll;
-        this.settings.camYaw = euler.yaw;
 
-        // Update the math anchors
-        this.settings._prevPitch = euler.pitch;
-        this.settings._prevRoll = euler.roll;
-        this.settings._prevYaw = euler.yaw;
-    }
 
     private handleInput(dt: number): void {
 
-        // O(1) check - extremely fast
         if (this.activeKeyCount <= 0) return;
 
-     
 
         console.log(">>> Processing input... keypressed: ", this.keysPressed);
 
@@ -553,10 +334,11 @@ export class RenderSkySun {
         const elDelta = ((this.keysPressed["'"] ? 1 : 0) - (this.keysPressed["/"] ? 1 : 0)) * 5.0 * dt;
         this.settings.sunElevation = THREE.MathUtils.clamp(this.settings.sunElevation + elDelta, -20, 89);
 
-         const aerosolDelta = (this.keysPressed[";"] ? 1 : 0) - (this.keysPressed["."] ? 1 : 0);
-        this.settings.aerosol = Math.min(30.0, Math.max(0.1, this.settings.aerosol + aerosolDelta * 2.0 * dt));
+        const aerosolDelta = (this.keysPressed[";"] ? 1 : 0) - (this.keysPressed["."] ? 1 : 0);
+        this.settings.aerosol = 
+            Math.min(30.0, Math.max(0.1, this.settings.aerosol + aerosolDelta * 2.0 * dt));
         //console.log(`> [Key] Sun Elevation Delta: ${elDelta.toFixed(2)}, New Elevation: ${this.state.sunElevation.toFixed(1)}°`);
-        console.log(`> [Key] Aerosol Delta: ${aerosolDelta}, New Aerosol: ${this.settings.aerosol.toFixed(1)}`);
+        // console.log(`> [Key] Aerosol Delta: ${aerosolDelta}, New Aerosol: ${this.settings.aerosol.toFixed(1)}`);
 
         //this.guiSettings.AerosolTurbidity = this.settings.aerosol; // Sync GUI slider with key input
 
