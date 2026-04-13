@@ -3,12 +3,17 @@
 import GUI from 'lil-gui';
 import { MovementController } from './utils/MovementController';
 
+ //: The AtmosphereUI class encapsulates the user interface for 
+ //: controlling various atmospheric and camera settings in the sky and sun rendering application.
 
 export class AtmosphereUI {
+   
+   
     private gui: GUI;
     private settings: any; 
     private movController: MovementController; 
 
+    //: Constructor initializes the UI with references to the GUI instance, settings object, and movement controller.
     constructor(
         gui: GUI,
         settings: any, 
@@ -19,8 +24,8 @@ export class AtmosphereUI {
         this.movController = movController; 
     }
 
+    //: This method initializes the UI by creating folders and controls for different categories of settings.
     public init(): void {
-
 
         this.xAddAtmostphereFolder();
         this.xAddSunEffectFolder();
@@ -34,17 +39,21 @@ export class AtmosphereUI {
 
     //--- PRIVATE METHODS
 
+    //: This helper method generates a unique ID for a given controller and assigns it to the corresponding input element in the GUI.
     private autoId(name: string, controller: any): any {
+
         const input = controller.domElement.querySelector('input, select, checkbox');
 
         if (input) {
-
-            // Use the property name as a unique ID
+            //: Generate a unique ID based on the property name and the provided name, and assign it to the input element. 
+            //: This allows for better accessibility and potential future styling.
             const id = `gui-${controller._property}-${name.replace(/\s+/g, '-').toLowerCase()}`;
             input.id = id;
             input.setAttribute('name', id);
         }
-        return controller; // Return for chaining
+
+        //: Return for chaining
+        return controller; 
     }
 
 
@@ -52,10 +61,11 @@ export class AtmosphereUI {
     private xAddAtmostphereFolder() {
 
         const atm = this.gui.addFolder('ATMOSPHERE');
-        atm.add(this.settings, 'enableMultipleScattering')
-            .name(' ▪ m. scatter');
+        
+        atm.add(this.settings, 'enableMultipleScattering').name(' ▪ m. scatter');
 
-
+        //: The aerosol control is a slider that allows the user to adjust the aerosol density in the atmosphere, 
+        //: which affects the scattering and overall appearance of the sky.
         this.autoId(
             'aerosol',
             atm.add(this.settings, 'aerosol', 0.1, 30.0, 0.1)
@@ -66,6 +76,7 @@ export class AtmosphereUI {
 
         atm.add(this.settings, 'enableDust').name(' ▪ dust');
 
+        //: The wind intensity control is a slider that adjusts the strength of the wind effect in the atmosphere,
         this.autoId(
             'windintensity',
             atm.add(this.settings, 'windIntensity', .0, 1.0, 0.02)
@@ -73,18 +84,19 @@ export class AtmosphereUI {
                 .name(' ▪ wind')
         );
 
-       
         return;
     }
 
     //: This method sets up the SUN EFFECT folder and its controls
     private xAddSunEffectFolder() {
+
         const sun = this.gui.addFolder('SUN EFFECT');
 
         sun.add(this.settings, 'enableRefract').name(' ▪ refract');
         sun.add(this.settings, 'enableHeatHaze').name(' ▪ heat haze');
         sun.add(this.settings, 'enableLimbDarken').name(' ▪ limb dark');
 
+        //: The sun elevation control is a slider that allows the user to adjust the angle of the sun above the horizon, which affects the lighting and color of the sky.
         this.autoId( 'sunelev',
             sun.add(this.settings, 'sunElevation', -20, 89.0,0.1)
                 .decimals(1)
@@ -98,6 +110,7 @@ export class AtmosphereUI {
 
     //: This method sets up the LENS EFFECT folder and its controls
     private xAddLensEffectFolder() {
+
         const lens = this.gui.addFolder('LENS EFFECT');
 
         lens.add(this.settings, 'enableFlare').name(' ▪ flare');
@@ -108,11 +121,13 @@ export class AtmosphereUI {
                 .decimals(1)
                 .name(' ▪ dirt wgt.')
         );
+
         this.autoId('lensdirtstep0',
             lens.add(this.settings, 'lensDirtStep0', 0, 1, 0.1)
                 .decimals(1)
                 .name(' ▪ dirt step0')
         );
+        
         this.autoId('lensdirtstep1',
             lens.add(this.settings, 'lensDirtStep1', 0, 5, 0.1)
                 .decimals(1)
@@ -120,24 +135,24 @@ export class AtmosphereUI {
         );
 
         return;
-
-       
     }
 
     private syncRotation(euler: { pitch: number, roll: number, yaw: number }) {
-        // Update the UI-bound settings
+
         this.settings.camPitch = euler.pitch;
         this.settings.camRoll = euler.roll;
         this.settings.camYaw = euler.yaw;
 
-        // Update the math anchors
         this.settings._prevPitch = euler.pitch;
         this.settings._prevRoll = euler.roll;
         this.settings._prevYaw = euler.yaw;
+
+        return;
     }
 
     //: This method sets up the CAMERA folder and its rotation sliders
     private xAddCameraFolder() {
+
         const cam = this.gui.addFolder('CAMERA');
         cam.add(this.settings, 'enablebreathing').name(' ▪ breathing');
 
@@ -198,6 +213,7 @@ export class AtmosphereUI {
         return;
     }
 
+    //: This method sets up the POST-PROCESS folder and its controls
     private xAddPostProcessFolder() {
         const pp = this.gui.addFolder('POST-PROCESS');
 
@@ -213,16 +229,17 @@ export class AtmosphereUI {
         return;
     }
 
+    //: This method sets up the TONE MAPPING folder and its controls
     private xAddToneMappingFolder() {
+
         const tone= this.gui.addFolder('TONE MAPPING');
-
         tone.add(this.settings, 'enableACES').name(' ▪ aces');
- 
-
         return;
     }
 
+    //: This method sets up the DEBUG folder and its controls
     private xAddDebugFolder() {
+
         const debug = this.gui.addFolder('DEBUG');
 
         debug.add(this.settings, 'enableCheckerboard').name(' ▪ checkerboard');
@@ -233,10 +250,7 @@ export class AtmosphereUI {
             .name(' ▪ scale')
         );
  
-
         return;
     }
  
-
-
-}
+} // End of AtmosphereUI class
