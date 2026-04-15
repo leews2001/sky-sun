@@ -4,14 +4,66 @@ import { setupKeyControls } from './utils/KeyControls';
 import { MovementController } from './utils/MovementController';
 import { RenderManager } from './renderMng';
 import { AtmosphereUI } from './uiSkySun';
-//import { UniformProxy } from './utils/UniformProxy';
+import { UniformProxy } from './utils/UniformProxy';
 
 //: Define your control set as a constant or class property
 const CONTROL_KEYS = ['w', 'a', 's', 'd', 'q', 'e', 'r', 'f', '[', ']', "'", '/', ';', '.'];
 
+
+// Define the shape of your settings for better type safety
+interface EngineSettings {
+
+     // --- atmosphere
+     
+    enableMultipleScattering: boolean;
+    aerosol: number;
+    enableDust: boolean;
+    windIntensity: number;
+
+    // --- sun
+    enableRefract: boolean;
+    enableHeatHaze: boolean;
+    enableLimbDarken: boolean;
+    sunElevation: number;
+    
+    // --- lens
+    enableFlare: boolean;
+    enableLensDirt: boolean;
+    lensDirtWeight: number;
+    lensDirtStep0: number;
+    lensDirtStep1: number;
+    // --- camera   
+    enablebreathing: boolean;
+    camPitch: number; 
+    camYaw: number; 
+    camRoll: number;
+    camFov: number,
+    eyeAttitude: number;
+    
+    // --- post-process
+    enableDither: boolean;
+    enableGrain: boolean;
+    grainWeight: number;
+
+    // --- tone mapping
+    enableACES: boolean;
+
+    // --- debug
+    enableCheckerboard: boolean;
+    checkerboardScale: number;
+    
+    //: Allows for additional internal flags
+    [key: string]: any; 
+
+} // << EngineSettings interface
+
+
 // Define a type for clarity
-//type MappingSchema = Record<string, THREE.IUniform[]>;
+type MappingSchema = Record<string, THREE.IUniform[]>;
  
+
+// --- The main application class that encapsulates the entire rendering system, UI, and state management.
+
 export class RenderSkySun {
 
     private renderer: THREE.WebGLRenderer;
@@ -29,8 +81,16 @@ export class RenderSkySun {
     private keysPressed: Record<string, boolean> = {};
     private activeKeyCount: number = 0; // Track how many control keys are currently pressed
 
+   
+    private scatMaterial!: THREE.ShaderMaterial;
+    private transMaterial!: THREE.ShaderMaterial;
+    private skyImageMaterial!: THREE.ShaderMaterial;
+    private bokehImageMaterial!: THREE.ShaderMaterial;
     
-    //private uniformMapping!: MappingSchema;
+    private skyImageTarget!: THREE.WebGLRenderTarget;
+    private scatTarget!: THREE.WebGLRenderTarget;
+    private transTarget!: THREE.WebGLRenderTarget;
+    //private bokehTarget!: THREE.WebGLRenderTarget;
 
     private skyUniforms: any;
     private scatUniforms: any;
@@ -39,7 +99,7 @@ export class RenderSkySun {
 
     //: Unified and centralized state object for all GUI settings and internal flags. 
     //: This makes it easier to manage and sync state across the app.
-    private settings = {
+    private settings: EngineSettings = {
         // --- atmosphere
         enableMultipleScattering: true,
         aerosol: 1.0,
@@ -91,9 +151,13 @@ export class RenderSkySun {
         _needsLutUpdate: true,
         _needsScatteringUpdate: true,
         _needsScatteringReset: false,       
-    };
+
+    }; // << settings:EngineSettings 
  
+    private uniformMapping!: MappingSchema;
  
+    //--- Constructor and Initialization ------------------------------------
+
     //: The constructor is private to enforce async initialization through the static init() method
     private constructor(canvas: HTMLCanvasElement, helpMenu: HTMLElement) {
         this.renderer = new THREE.WebGLRenderer({
@@ -110,20 +174,6 @@ export class RenderSkySun {
 
         this.setupEventListeners(helpMenu);
 
-        // const mats = this.passes.materials;
-        // this.skyUniforms = mats.get('skyImage')?.uniforms;
-        // this.scatUniforms = mats.get('scattering')?.uniforms;
-        // this.transUniforms = mats.get('transmittance')?.uniforms;
-        // this.bokehUniforms = mats.get('bokehImage')?.uniforms;
-
-        // if (!this.skyUniforms || !this.scatUniforms || !this.transUniforms || !this.bokehUniforms) {
-        //     console.warn("01 One or more shader uniforms are missing. Cannot sync GUI settings.");
-        //     console.warn("02 skyUniforms: ", this.skyUniforms);
-        //     console.warn("03 scatUniforms: ", this.scatUniforms);
-        //     console.warn("04 transUniforms: ", this.transUniforms);
-        //     console.warn("05 bokehUniforms: ", this.bokehUniforms);
-        // }
-
     }
 
     //: Factory method to handle async initialization
@@ -131,23 +181,29 @@ export class RenderSkySun {
 
         const instance = new RenderSkySun(canvas, helpMenu);
         await instance.passes.init(canvas.width, canvas.height, canvas);
-        // 2. CRITICAL: Cache the uniforms AFTER passes.init is complete
+
+
+        //: 1. Cache uniform references for direct access. 
+        //: This avoids the overhead of Map lookups in the render loop 
+        //: and allows us to use the UniformProxy effectively.
         instance.cacheUniformReferences();
-        //instance.initUniformMapping();
+
+        //: 2. Initialize the uniform mapping and wrap the settings object with the Proxy.
+        instance.initUniformMapping();
         
         setupKeyControls((v) => {
             instance.passes.materials.get('skyImage')!.uniforms.u_keyPressed.value = v;
         });
 
+        //: 3. Initialize UI (which now talks to the Proxy)
         instance.ui = new AtmosphereUI(
-            instance.gui, 
-            instance.settings,  
-            instance.movController );
+            instance.gui,   instance.settings,  instance.movController );
 
         instance.ui.init();
-  
-        instance.syncAllUniforms();
- 
+   
+        //: 4. Set initial uniform values that depend on non-primitive types or require special handling
+        instance.skyUniforms.uCameraMat.value = instance.movController.cameraMat3; 
+
         instance.settings._prevRoll = instance.settings.camRoll;
         instance.settings._prevPitch = instance.settings.camPitch;
         instance.settings._prevYaw = instance.settings.camYaw;
@@ -156,104 +212,13 @@ export class RenderSkySun {
         instance.settings._lastElevation = instance.settings.sunElevation;
         instance.settings._lastAttitude = instance.settings.eyeAttitude;
 
-        // const mats = instance.passes.materials;
-        // instance.skyUniforms = mats.get('skyImage')?.uniforms;
-        // instance.scatUniforms = mats.get('scattering')?.uniforms;
-        // instance.transUniforms = mats.get('transmittance')?.uniforms;
-        // instance.bokehUniforms = mats.get('bokehImage')?.uniforms;
-
-        // if (!instance.skyUniforms || !instance.scatUniforms || !instance.transUniforms || !instance.bokehUniforms) {
-        //     console.warn("02 One or more shader uniforms are missing. Cannot sync GUI settings.");
-        //         console.warn("skyUniforms: ", instance.skyUniforms);
-        //         console.warn("scatUniforms: ", instance.scatUniforms);
-        //         console.warn("transUniforms: ", instance.transUniforms);
-        //         console.warn("bokehUniforms: ", instance.bokehUniforms);
-        // }
-
         return instance;
-    }
+
+    } // << static init()
 
 
-    // private initUniformProxy(): void {
-    //     const sky = this.skyUniforms;
-    //     const scat = this.scatUniforms;
-    //     const trans = this.transUniforms;
-
-    //     const mapping: UniformMap = {
-    //         // Syntax: settingsKey: [Array of uniforms to update]
-    //         aerosol: [sky.fAerosolTurbidity, scat.fAerosolTurbidity, trans.fAerosolTurbidity],
-    //         sunElevation: [sky.fSunElevationDeg, scat.fSunElevationDeg],
-    //         eyeAttitude: [sky.fEyeAttitude, scat.fEyeAttitude],
-    //         windIntensity: [sky.fWindIntensity, scat.fWindIntensity],
-    //         enableACES: [sky.bEnableACES],
-    //         camFov: [sky.fCameraFov],
-    //         // ... add others as needed
-    //     };
-
-    //     // Re-assign settings to the Proxied version
-    //     this.settings = UniformProxy.create(this.settings, mapping);
-    // }
-
-    /**
-     * Grabs references once so we don't use .get() in the render loop
-     */
-    private cacheUniformReferences(): void {
-        const mats = this.passes.materials;
-        this.skyUniforms = mats.get('skyImage')?.uniforms;
-        this.scatUniforms = mats.get('scattering')?.uniforms;
-        this.transUniforms = mats.get('transmittance')?.uniforms;
-        this.bokehUniforms = mats.get('bokehImage')?.uniforms;
-
-        if (!this.skyUniforms || !this.scatUniforms) {
-            console.error("Critical Failure: Could not cache shader uniforms. Check RenderManager pass names.");
-        }
-    }
-
-    // private initUniformMapping(): void {
-    //     const sky = this.skyUniforms;
-    //     const scat = this.scatUniforms;
-    //     const trans = this.transUniforms;
-    //     const bokeh = this.bokehUniforms;
-
-    //     this.uniformMapping = {
-    //         // Format: settingKey: [uniform1, uniform2, ...]
-            
-    //         // --- Atmosphere
-    //         aerosol: [sky.fAerosolTurbidity, scat.fAerosolTurbidity, trans.fAerosolTurbidity],
-    //         enableMultipleScattering: [scat.bEnableMultipleScattering],
-    //         windIntensity: [scat.fWindIntensity, sky.fWindIntensity],
-            
-    //         // --- Sun
-    //         sunElevation: [sky.fSunElevationDeg, scat.fSunElevationDeg],
-    //         enableRefract: [sky.bEnableRefract],
-    //         enableHeatHaze: [sky.bEnableHeatHaze],
-    //         enableLimbDarken: [sky.bEnableLimbDarken],
-            
-    //         // --- Camera
-    //         camFov: [sky.fCameraFov],
-    //         eyeAttitude: [sky.fEyeAttitude, scat.fEyeAttitude, trans.fEyeAttitude],
-            
-    //         // --- Lens
-    //         enableFlare: [sky.bEnableFlare],
-    //         enableLensDirt: [sky.bEnableLensDirt],
-    //         lensDirtWeight: [sky.fLensDirtWeight],
-            
-    //         // --- Post-Process
-    //         enableDither: [bokeh.bEnableDither],
-    //         enableGrain: [bokeh.bEnableGrain],
-    //         grainWeight: [bokeh.fGrainWeight],
-    //         enableACES: [sky.bEnableACES],
-
-    //         // --- Debug
-    //         enableCheckerboard: [sky.bEnableCheckerboard],
-    //         checkerboardScale: [sky.fCheckerboardScale]
-    //     };
-
-    //     // Now wrap your settings in the Proxy using this schema
-    //     this.settings = UniformProxy.create(this.settings, this.uniformMapping);
-    // }
-
-    //: This method resizes the renderer and all render targets, and flags LUTs for update if necessary
+    //: This method resizes the renderer and all render targets, 
+    //: and flags LUTs for update if necessary
     public resize(w: number, h: number): void {
 
         this.renderer.setSize(w, h);
@@ -264,11 +229,11 @@ export class RenderSkySun {
         return;
     }
 
-    //: Main render loop. Handles input, updates state, manages LUT updates, syncs uniforms, and executes render passes.
+    //: Main render loop. Handles input, updates state, manages LUT updates, 
+    //: syncs uniforms, and executes render passes.
     public render(): void {
 
         this.timer.update();
-        
         const dt = this.timer.getDelta();
 
         // 1. Process Input & Motion
@@ -278,120 +243,166 @@ export class RenderSkySun {
             this.movController.applyIdleMotion(dt);
         }
 
-        // 2. LUT Optimization Logic
+        // 2. CHANGE DETECTION (Do this BEFORE updating 'last' values), for LUT Optimization Logic
         this.settings._needsScatteringReset = (this.settings._needsScatteringUpdate  == true) && (this.settings.windIntensity <= 0.1);
-        // because we have wind, we need to update the scattering LUT every frame to keep it animating
-        this.settings._needsScatteringUpdate = true;// (this.guiSettings.WindIntensity > 0.1);
+        
+        //: HACK force to True for now, because we have wind, we need to update the scattering LUT 
+        //: every frame to keep it animating
+        //: In a more complex system, we might have a separate flag for "needsWindUpdate" 
+        //: or something to avoid unnecessary LUT renders when the wind is off.
+        //: Future work, we want to update the scattering LUT for every frame 
+        //: where wind intensity is above 0.1, regardless of whether the user changed any settings, 
+        //: to keep the animation smooth.
+        //: When wind is turned off (intensity <= 0.1), 
+        //: we can set a flag to reset and update the LUT to a static state to save performance.
+        this.settings._needsScatteringUpdate = true;
     
 
-        const aerosolChanged = Math.abs(this.settings.aerosol - this.settings._lastAerosol) > 0.001; 
+        const aerosolChanged = Math.abs(this.settings.aerosol - this.settings._lastAerosol) > 0.01; 
        
         const viewChanged = Math.abs(this.settings.sunElevation - this.settings._lastElevation) > 0.001 || 
                             Math.abs(this.settings.eyeAttitude - this.settings._lastAttitude) > 0.001;
 
+
+        //: 3. GPU SYNC (The "Pull")
+        //: Pull-based Synchronization. Instead of having different sliders 
+        //: and keys "pushing" data to the GPU at random times, 
+        //: the renderer "pulls" the current state of the world once per frame, 
+        //: right before the draw call.
+
+        //: update the camera matrix uniform directly from the MovementController's internal state. 
+        //: This is a special case since it's a mat3 and not a simple float/bool.
+        this.skyUniforms.uCameraMat.value = this.movController.cameraMat3; 
+    
+        // The "Pull": Only sync what actually changed this frame
+        UniformProxy.sync(this.settings, this.uniformMapping);
+
+        // 4. CONDITIONAL LUT UPDATES
+        // Now that uniforms are synced, we can render the LUTs if the flags say so
         if (aerosolChanged || this.settings._needsLutUpdate) {
-            this.renderToTarget('transmittance');
+            //this.renderToTarget('transmittance');
+            this.renderToTarget(this.transMaterial, this.transTarget);
             this.settings._needsLutUpdate = false;
         }
 
         if (aerosolChanged || viewChanged || this.settings._needsScatteringUpdate) {
-            this.renderToTarget('scattering');
+            //this.renderToTarget('scattering');
+            this.renderToTarget(this.scatMaterial, this.scatTarget);
             this.settings._needsScatteringUpdate = false;
         }
 
-        // if (this.state.needsScatteringReset) {
-        //     console.log("Resetting scattering LUT to clear wind animation...");
-        //     this.renderToTarget('scattering');
-        //     this.state.needsScatteringReset = false;
-        // }
-
-        // Cache state
+        // 5. CACHE STATE FOR NEXT FRAME (Do this LAST)
         this.settings._lastAerosol = this.settings.aerosol;
         this.settings._lastElevation = this.settings.sunElevation;
         this.settings._lastAttitude = this.settings.eyeAttitude;
 
-        //------
-        //: Pull-based Synchronization. Instead of having different sliders and keys "pushing" data to the GPU at random times, 
-        //: the renderer "pulls" the current state of the world once per frame, right before the draw call.
-
-        this.syncAllUniforms(); // Ensure all uniforms are up-to-date before the main render
-
-
-        // The "Pull": Only sync what actually changed this frame
-        // UniformProxy.sync(this.settings, this.uniformMapping);
-
-        // 3. Main Dynamic Pass 
+        // 6. FINAL OUTPUT PASSES
         this.passes.globalUniforms.iTime.value = this.timer.getElapsed();
         this.passes.globalUniforms.iFrame.value++;
 
-        this.renderToTarget('skyImage');
+        //this.renderToTarget('skyImage');
+        this.renderToTarget(this.skyImageMaterial, this.skyImageTarget);
 
-        // 4. Final Display (Bokeh/Post)
-        this.quad.material = this.passes.materials.get('bokehImage')!;
+        // 7. Final Display (Bokeh/Post)
+        this.quad.material = this.bokehImageMaterial;
         this.renderer.setRenderTarget(null);
         this.renderer.render(this.scene, this.camera);
 
         return;
-    }
+    } // << render()
 
-    // --- Private Helper Methods ---
+    // --- Private Helper Methods ------------------------------------
 
-  /**
-     * Centralized Uniform Sync. 
-     * Ensures all materials get the latest GUI/State values in one pass.
+    /**
+     * Grabs references once so we don't use .get() in the render loop
+     * direct assignment is much faster than .get() in a loop
      */
-    private syncAllUniforms(): void {
- 
+    private cacheUniformReferences(): void {
+        
+        const mats = this.passes.materials;
 
+        this.skyUniforms = mats.get('skyImage')?.uniforms;
+        this.scatUniforms = mats.get('scattering')?.uniforms;
+        this.transUniforms = mats.get('transmittance')?.uniforms;
+        this.bokehUniforms = mats.get('bokehImage')?.uniforms;
+
+        if (!this.skyUniforms || !this.scatUniforms) {
+            console.error("Critical Failure: Could not cache shader uniforms. Check RenderManager pass names.");
+        }
+
+        // this.bokehMaterial = mats.get('bokehImage') as THREE.ShaderMaterial;
+        this.bokehImageMaterial = mats.get('bokehImage')!;
+        this.skyImageMaterial = mats.get('skyImage')!;
+        this.scatMaterial = mats.get('scattering')!;
+        this.transMaterial = mats.get('transmittance')!;
+     
+        const targets = this.passes.renderTargets;
+
+        this.skyImageTarget = targets.get('skyImage' as any)!;
+        this.scatTarget = targets.get('scattering' as any)!;
+        this.transTarget = targets.get('transmittance' as any)!;
+
+        return;
+
+    } // << cacheUniformReferences()
+
+    private initUniformMapping(): void {
         const sky = this.skyUniforms;
         const scat = this.scatUniforms;
         const trans = this.transUniforms;
         const bokeh = this.bokehUniforms;
 
-        if (!sky || !scat || !trans || !bokeh) {
-            console.warn("One or more shader uniforms are missing. Cannot sync GUI settings.");
-            return;
-        }
+        // 1. Map settings keys to the actual cached uniforms
+        this.uniformMapping = {
+            // Format: settingKey: [uniform1, uniform2, ...]
+            
+            // --- Atmosphere
+            aerosol: [sky.fAerosolTurbidity, scat.fAerosolTurbidity, trans.fAerosolTurbidity],
+            enableMultipleScattering: [scat.bEnableMultipleScattering],
+            enableDust: [sky.bEnableDust],
+            windIntensity: [scat.fWindIntensity, sky.fWindIntensity],
+            
+            // --- Sun
+            sunElevation: [sky.fSunElevationDeg, scat.fSunElevationDeg],
+            enableRefract: [sky.bEnableRefract],
+            enableHeatHaze: [sky.bEnableHeatHaze],
+            enableLimbDarken: [sky.bEnableLimbDarken],
+            
+            // --- Camera
+            camFov: [sky.fCameraFov],
+            eyeAttitude: [sky.fEyeAttitude, scat.fEyeAttitude],
+            
+            // --- Lens
+            enableFlare: [sky.bEnableFlare],
+            enableLensDirt: [sky.bEnableLensDirt],
+            lensDirtWeight: [sky.fLensDirtWeight],
+            
+            // --- Post-Process
+            enableDither: [bokeh.bEnableDither],
+            enableGrain: [bokeh.bEnableGrain],
+            grainWeight: [bokeh.fGrainWeight],
+            enableACES: [sky.bEnableACES],
 
-        //: Apply GUI Settings
-        
-        sky.bEnableACES.value = this.settings.enableACES;
+            // --- Debug
+            enableCheckerboard: [sky.bEnableCheckerboard],
+            checkerboardScale: [sky.fCheckerboardScale]
+        };
 
-        sky.fCameraPitch.value = this.settings.camPitch;
-        sky.fCameraFov.value = this.settings.camFov;
+        // 2. Wrap the settings object. 
+        // From this point on, any write to this.settings marks it as 'dirty' for the next frame.
+        this.settings = UniformProxy.create(this.settings, this.uniformMapping);
 
-        sky.bEnableLensDirt.value = this.settings.enableLensDirt;
-        sky.fLensDirtWeight.value = this.settings.lensDirtWeight;
-        sky.fLensDirtStep0.value = this.settings.lensDirtStep0;
-        sky.fLensDirtStep1.value = this.settings.lensDirtStep1;
-        sky.bEnableDust.value = this.settings.enableDust;
-        sky.bEnableRefract.value = this.settings.enableRefract;
-        sky.bEnableHeatHaze.value = this.settings.enableHeatHaze;
-        sky.bEnableLimbDarken.value = this.settings.enableLimbDarken;
-        sky.bEnableFlare.value = this.settings.enableFlare;
-        sky.bEnableCheckerboard.value = this.settings.enableCheckerboard;
-        sky.fCheckerboardScale.value = this.settings.checkerboardScale;
+        return;
+    } // << initUniformMapping()
 
-        scat.bEnableMultipleScattering.value = this.settings.enableMultipleScattering;
-        scat.fWindIntensity.value = this.settings.windIntensity;
-        sky.fWindIntensity.value = this.settings.windIntensity;
+    //: Renders a specific pass to its target. This is used for LUT updates and the main sky render.
+    private renderToTarget(mat: THREE.Material, target: THREE.WebGLRenderTarget): void {
 
-        bokeh.bEnableDither.value = this.settings.enableDither;
-        bokeh.bEnableGrain.value = this.settings.enableGrain;
-        bokeh.fGrainWeight.value = this.settings.grainWeight;
+        this.quad.material = mat;
+        this.renderer.setRenderTarget(target);
+        this.renderer.render(this.scene, this.camera);
 
-        // Apply Engine State
-        //this.updateStateUniforms();
-
-        [sky, scat, trans].forEach(u => u.fAerosolTurbidity.value = this.settings.aerosol);
-        [sky, scat].forEach(u => u.fSunElevationDeg.value = this.settings.sunElevation);
-        [sky, scat].forEach(u => u.fEyeAttitude.value = this.settings.eyeAttitude);
-         
- 
-        sky.fCameraFov.value = this.settings.camFov;
-    
-        //-- Directly setting the value to the mat3 (Float32Array)
-        sky.uCameraMat.value = this.movController.cameraMat3;
+        return;
     }
  
     //: Sets up global keydown and keyup listeners to track control key states and toggle the help menu with Escape.
@@ -408,7 +419,6 @@ export class RenderSkySun {
             }
         });
 
-
         window.addEventListener('keyup', (e) => {
             const key = e.key.toLowerCase();
             if (CONTROL_KEYS.includes(key) && this.keysPressed[key]) {
@@ -417,28 +427,17 @@ export class RenderSkySun {
             }
         });
         return;
-    }
+    } // << setupEventListeners
 
-    //: Renders a specific pass to its target. This is used for LUT updates and the main sky render.
-    private renderToTarget(name: string): void {
-        const mat = this.passes.materials.get(name);
-        const target = this.passes.renderTargets.get(name as any);
-        if (!mat || !target) return;
-
-        this.quad.material = mat;
-        this.renderer.setRenderTarget(target);
-        this.renderer.render(this.scene, this.camera);
-
-        return;
-    }
-
-    //: This method processes the current input state to update camera orientation, position, sun elevation, and aerosol levels. 
+ 
+    //: This method processes the current input state to update camera orientation, 
+    //: position, sun elevation, and aerosol levels. 
     //: It also handles clamping and state synchronization for smooth control.
     private handleInput(dt: number): void {
 
         if (this.activeKeyCount <= 0) return;
 
-        console.log(">>> Processing input... keypressed: ", this.keysPressed);
+        //console.log(">>> Processing input... keypressed: ", this.keysPressed);
 
         // Camera Rotation
         const dP = ((this.keysPressed['w'] ? 1 : 0) - (this.keysPressed['s'] ? 1 : 0)) * 1.5 * dt;
@@ -466,8 +465,10 @@ export class RenderSkySun {
         this.settings.eyeAttitude = this.movController.camYPos; 
          
 
-        //: Update camera orientation based on input deltas. The MovementController handles the math and state internally, 
-        //: and we just sync the resulting Euler angles back to our settings for uniform updates and GUI display.
+        //: Update camera orientation based on input deltas. 
+        //: The MovementController handles the math and state internally, 
+        //: and we just sync the resulting Euler angles back to our settings 
+        //: for uniform updates and GUI display.
         const euler = this.movController.update(dP, dY, dR);
  
         this.settings._prevRoll = euler.roll;
@@ -488,7 +489,6 @@ export class RenderSkySun {
 
 
         return;
-    }
-
+    } // << handleInput
 
 } // << export class RenderSkySun
