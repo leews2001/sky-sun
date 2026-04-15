@@ -5,32 +5,48 @@
 
 export class UniformProxy {
     // We store which properties changed since the last frame
-    private static dirtyProps = new Set<string>();
+    private static dirtyQueue = new Set<string>();
 
+    /**
+     * Creates a proxied version of the settings object.
+     * * Note: The 'mapping' parameter is functionally "bound" to this Proxy instance. 
+     * We pass it here to validate that only properties defined in the schema trigger 
+     * the dirty-queue. This ensures internal flags (like _prevRoll) don't cause 
+     * unnecessary shader synchronization overhead.
+     */
     //noting that the mapping defines the schema for what the Proxy should track.
     static create<T extends object>(target: T, mapping: any): T {
         return new Proxy(target, {
             set: (obj, prop: string, value) => {
                 if ((obj as any)[prop] !== value) {
                     (obj as any)[prop] = value;
-                    this.dirtyProps.add(prop); // Mark as dirty
+                    // Only flag for GPU sync if the property exists in our shader mapping
+                    if (prop in mapping) {
+                        this.dirtyQueue.add(prop);
+                    }
                 }
                 return true;
             }
         });
     }
 
-    // Called ONCE per frame in your render loop
-    static sync(target: any, mapping: any) {
-        if (this.dirtyProps.size === 0) return;
+    /**
+     * Pull-based synchronization. Call this once per frame in the render loop.
+     */
+    static sync(target: any, mapping: Record<string, any[]>) {
 
-        this.dirtyProps.forEach(prop => {
-            if (mapping[prop]) {
-                const val = target[prop];
-                mapping[prop].forEach((u: any) => u.value = val);
+        if (this.dirtyQueue.size === 0) return;
+
+        this.dirtyQueue.forEach(prop => {
+            const uniforms = mapping[prop];
+            if (uniforms) {
+                const newValue = target[prop];
+                for (let i = 0; i < uniforms.length; i++) {
+                    uniforms[i].value = newValue;
+                }
             }
         });
-        
-        this.dirtyProps.clear(); // Reset for next frame
+
+        this.dirtyQueue.clear();
     }
 }
