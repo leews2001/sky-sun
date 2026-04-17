@@ -170,7 +170,7 @@ export class AtmosphereUI {
         );
 
         this.autoId('eyeattitude',
-        cam.add(this.settings, 'eyeAttitude', 0.02, 64, 0.1)
+        cam.add(this.settings, 'eyeAttitude', 0.02, 80, 0.1)
             .decimals(2)
             .name(' ▪ altitude')
             .listen()

@@ -105,6 +105,7 @@ button:focus-visible {
 	position: absolute;
 	inset: 0;
 	pointer-events: none; 
+	overflow: hidden;
 }
 
 #title-screen {
@@ -116,7 +117,7 @@ button:focus-visible {
 	font-size: 2.0rem; 
 	
 	opacity: 100; /* start invisible */
-	outline: 1px solid red;
+	outline: 0px solid red; /* on for debug */
 	
 	display: flex;
 	flex-direction: column;
@@ -125,7 +126,16 @@ button:focus-visible {
 	text-align: center; 
 	gap: .1rem;                /* spacing between title and button */
 	overflow: hidden;
+
+	/* animation: vcr-jitter 0.1s infinite;
+    animation-play-state: paused; */
 }
+
+/* Jitter when clicking? */
+/* 
+#title-screen:active { 
+    animation-play-state: running;
+} */
 
 #subtitle {
 	font-family: monospace, 'Segoe UI', Tahoma,  Verdana, sans-serif;
@@ -136,6 +146,7 @@ button:focus-visible {
 	margin: 0;
 	padding: .1rem .1rem;
 	filter: blur(0.66px);
+	cursor: default;
 	/* outline: 1px solid red; */
   
 }
@@ -146,7 +157,7 @@ button:focus-visible {
 	display: inline-block; /* IMPORTANT */
 	font-size: clamp(1.2rem, 6vw, 8rem);
 	letter-spacing: 0.1em;
-	color: rgb(255, 255, 255); 
+	color: GhostWhite;
 	width:100vw;
 	overflow: hidden;  /* you already have this ✔ */
 	filter: blur(0.66px);
@@ -170,17 +181,21 @@ button:focus-visible {
 	/* margin-top:11.5rem; */
 	padding: .1rem .5rem;
 	font-size: 0.8rem;
+	font-weight: normal;
 	border: none;
 	border-radius: 6px;
 	background-color: #00000000;
-  	color: white;
+  	color: GhostWhite;
 	cursor: pointer;
 	filter: blur(.66px);
+	
 }
 
 #start-btn:hover {
-  color: white;
-  transform: scale(1.2);
+  color: crimson;
+  font-weight: heavy;
+  /* filter: blur(0.33px);  */
+  /* transform: scale(2.5); */
  
 }
 
@@ -320,9 +335,9 @@ button:focus-visible {
 	}
 
 	&.lil-auto-place,
-	// https://github.com/georgealways/lil-gui/pull/154
+	/* // https://github.com/georgealways/lil-gui/pull/154
 	// .autoPlace is deprecated in 0.21.0, but unlikely to conflict with user styles.
-	// keeping it for backwards compatibility.
+	// keeping it for backwards compatibility. */
 	&.autoPlace {
 		max-height: 100%;
 		position: fixed;
@@ -332,3 +347,18 @@ button:focus-visible {
 	}
 }
 
+
+
+.shake-heavy {
+    /* animation: shake 0.2s infinite; */
+	animation: shake 0.15s;
+}
+
+@keyframes shake {
+    0% { transform: translate(1px, 1px) rotate(0deg); }
+    20% { transform: translate(-3px, 0px) rotate(1deg); }
+    40% { transform: translate(3px, 2px) rotate(-1deg); }
+    60% { transform: translate(-1px, -1px) rotate(1deg); }
+    80% { transform: translate(-3px, -2px) rotate(0deg); }
+    100% { transform: translate(1px, 2px) rotate(-1deg); }
+}

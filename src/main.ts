@@ -3,6 +3,145 @@ import {animate} from 'animejs';
 import './style.css'
 import { RenderSkySun } from './ts/renderSkySun';
 
+
+
+// -------------------------
+
+class VCRNoiseController {
+    private canvas: HTMLCanvasElement;
+    private ctx: CanvasRenderingContext2D;
+    private active: boolean = false;
+    private vcrTracking1: number = 0.55; // bottom tracking position (0 to 1, where 0 is bottom of canvas)
+    private vcrTracking2: number = 0.55; // top tracking position (0 to 1, where 0 is top of canvas)
+    private vcrAge: number = 1; // "Tape age" equivalent, controls density of noise
+    private intensityMult: number = 0.0; // Multiplier for noise intensity, used for impact effects
+    private trackingStrength: number = 1.0; // How far the tracking lines can move (0 to 1)
+
+    constructor(parent: HTMLElement) {
+        this.canvas = document.createElement('canvas');
+        this.canvas.className = 'vcr-overlay';
+        this.ctx = this.canvas.getContext('2d')!;
+        
+        // Match parent size
+        this.resize();
+        parent.appendChild(this.canvas);
+        
+        // CSS to ensure it overlays correctly
+        this.canvas.style.position = 'absolute';
+        this.canvas.style.top = '0';
+        this.canvas.style.left = '0';
+        this.canvas.style.pointerEvents = 'none'; // Don't block button clicks
+        this.canvas.style.opacity = '0.0';       // Subtle noise
+        this.canvas.style.mixBlendMode = 'screen';
+        this.canvas.style.filter = `blur(1px)`;
+    }
+
+    /** Temporarily boosts noise density and visibility */
+    public async impact(duration: number): Promise<void> {
+        // If already high intensity, don't stack timers
+        if (this.intensityMult > 0.01) return;
+
+    // Get the parent element so the WHOLE screen shakes, not just the noise
+        const parent = this.canvas.parentElement;
+        if (parent) parent.classList.add('shake-heavy');
+
+        this.intensityMult = 100.0; 
+        this.canvas.style.opacity = '0.8';
+        this.canvas.style.filter = 'blur(1.2px) contrast(150%)';
+        this.trackingStrength= 1.0;
+        
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                // Only fade back if we aren't stopping the controller entirely
+                if (this.active) {
+                    this.intensityMult = .0;
+                    this.canvas.style.opacity = '0.0';
+                    this.canvas.style.filter = 'blur(0.4px)';
+                   if (parent) parent.classList.remove('shake-heavy');
+                }
+                resolve();
+            }, duration);
+        });
+    }
+
+    public resize() {
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+    }
+
+    private getRandomInt(min: number, max: number): number {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    private renderTail(x: number, y: number, radius: number) {
+        
+        //: length of the tail is randomized to create more organic noise patterns
+        const n = this.getRandomInt(1, 32);
+        const spread = 2 + Math.random() * 8; // Horizontal spread of the tail 
+
+        let rd = radius;
+        const dir = Math.random() > 0.5 ? 1 : -1;
+
+        for (let i = 0; i < n; i++) {
+            rd -= 0.01;
+            let r = this.getRandomInt(Math.max(0.1, rd), radius);
+            //: Random horizontal step to create a "drifting" tail effect
+            let dx = this.getRandomInt(1, spread) * dir;
+ 
+            x += dx;
+            this.ctx.fillRect(x, y, r, r);
+        }
+
+        return;
+    }
+
+    private loop = () => {
+        if (!this.active) return;
+
+        this.trackingStrength *= 0.92; // Gradually reduce tracking strength over time
+
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.fillStyle = "#fff";
+ 
+        let posy1 = this.canvas.height- (this.vcrTracking1 * this.trackingStrength) * this.canvas.height ;
+    
+        let posy3 = (this.vcrTracking2* this.trackingStrength)* this.canvas.height
+ 
+        let num = this.vcrAge + 20 * this.intensityMult;
+
+        this.intensityMult *= 0.71; // Gradually reduce intensity multiplier over time
+        for (let i = 0; i < num; i++) {
+            const x = Math.random() * this.canvas.width;
+            const y1 = this.getRandomInt(posy1+=3,  this.canvas.height);
+            const y2 = this.getRandomInt(0, posy3-=3);
+ 
+            const thick = 1+ 2*(i % 2) ; // Randomly vary the thickness of the noise for visual interest
+            this.ctx.fillRect(x, y1, 4, thick);
+            this.ctx.fillRect(x, y2, 4, thick );
+
+            this.renderTail(x, y1, thick);
+            this.renderTail(x, y2, thick);
+        }
+
+        requestAnimationFrame(this.loop);
+        return;
+    }
+
+    public start() {
+        this.active = true;
+        this.loop();
+        return;
+    }
+
+    public stop() {
+        this.active = false;
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        return;
+    }
+}
+
+//----------------------------------------------------------------
+
 /** * CONFIGURATION & CONSTANTS
  * Keeping magic numbers and strings in one place makes maintenance easier.
  */
@@ -146,6 +285,71 @@ class ChromaGlitchController {
     }
 }
 //----------------------------------------------------------------
+// function getRandomInt(min:number, max:number): number {
+//   min = Math.ceil(min);
+//   max = Math.floor(max);
+//   return Math.floor(Math.random() * (max - min + 1)) + min;
+// }
+
+// function renderTail(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number) {
+
+//     const n = getRandomInt(1, 50);
+
+//     const dirs = [1, -1];
+//     let rd = radius;
+//     const dir = dirs[Math.floor(Math.random() * dirs.length)];
+//     for (let i = 0; i < n; i++) {
+//       const step = 0.01;
+//       let r = getRandomInt((rd -= step), radius);
+//       let dx = getRandomInt(1, 4);
+
+//       radius -= 0.1;
+
+//       dx *= dir;
+
+//       ctx.fillRect((x += dx), y, r, r);
+//       ctx.fill();
+//     }
+//   } 
+
+// function  renderTrackingNoise(ctx: CanvasRenderingContext2D,radius = 2, xmax: number, ymax: number) {
+    
+//     // const canvas = this.effects.vcr.node;
+//     // const ctx = this.effects.vcr.ctx;
+//     // const config = this.effects.vcr.config;
+
+
+//     let posy1 = vcr_tracking || 0;
+//     let posy2 = canvas.height;
+//     let posy3 = vcr_tracking2 || 0;
+//     const num = tape_age|| 20;
+    
+//     if ( xmax === undefined ) {
+//       xmax = canvas.width;
+//     }
+    
+//     if ( ymax === undefined ) {
+//       ymax = canvas.height;
+//     }     
+    
+//     //canvas.style.filter = `blur(${config.blur}px)`;
+//     ctx.clearRect(0, 0, canvas.width, canvas.height);
+//     ctx.fillStyle = `#fff`;
+
+//     ctx.beginPath();
+//     for (let i = 0; i <= num; i++) {
+//       var x = Math.random() * xmax;
+//       var y1 = getRandomInt(posy1+=3, posy2);
+//       var y2 = getRandomInt(0, posy3-=3);
+//       ctx.fillRect(x, y1, radius, radius);
+//       ctx.fillRect(x, y2, radius, radius);
+//       ctx.fill();
+
+//       renderTail(ctx, x, y1, radius);
+//       renderTail(ctx, x, y2, radius);
+//     }
+//     ctx.closePath();
+//   }
 
 
 /**
@@ -175,6 +379,8 @@ async function main() {
     const btnGlitcher = new TextGlitcher(startBtn);
     const subtitleGlitcher = new TextGlitcher(subtitle);
 
+    const vcrNoise = new VCRNoiseController(titleScreen!);
+
     let renderer: RenderSkySun | null = null;
 
     // 3. Helper Functions
@@ -199,13 +405,18 @@ async function main() {
     };
 
     const handleTransition = async () => {
+
+        // 1. Disable interaction immediately
+        startBtn.disabled = true;
+        startBtn.style.pointerEvents = "none";
+
         // Cleanup UI effects
+        vcrNoise.stop(); // Stop the VCR effect on transition
         visualGlitches.stop();
         btnGlitcher.stop();
         subtitleGlitcher.stop();
         
-        startBtn.disabled = true;
-        startBtn.style.pointerEvents = "none";
+   
 
         await initializeRenderer();
         renderer?.resize(window.innerWidth, window.innerHeight);
@@ -226,18 +437,44 @@ async function main() {
         canvas.style.opacity = "1";
         await initializeRenderer();
     } else {
+        vcrNoise.start(); // Start VCR noise
         visualGlitches.start();
         btnGlitcher.startLoop();
         subtitleGlitcher.startLoop();
         startBreathing();
 
-        startBtn.addEventListener("click", handleTransition);
+        // 2. The Button Click (Transition only)
+        startBtn.addEventListener("click", (e) => {
+            e.stopPropagation(); // Prevent the titleScreen click from firing too
+            handleTransition();
+        });
     }
 
     window.addEventListener('resize', () => {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
+
+        vcrNoise.resize();
         renderer?.resize(canvas.width, canvas.height);
+    });
+
+    // 1. The Background Click (Interference only)
+    titleScreen.addEventListener("click", (e) => {
+        // Check if the click was DIRECTLY on the background or a non-button element
+        const isButton = (e.target as HTMLElement).closest("#start-btn");
+        
+        if (!isButton) {
+            const randomDuration = 800 + Math.random() * 500; // 0.8s to 1.5s
+            vcrNoise.impact(randomDuration);
+            
+            // // Optional: Add a subtle audio-visual "thud" effect
+            // animate(titleScreen, {
+            //     translateX: [Math.random() * 10 - 5, 0],
+            //     duration: 100,
+            //     easing: "easeOutExpo"
+            // });
+            console.log("Background clicked - potential interference!");
+        }
     });
 }
 
