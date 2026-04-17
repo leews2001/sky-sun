@@ -461,7 +461,7 @@ export class RenderSkySun {
 
         this.movController.camYPos += dAlt * yStep * dt;
         this.movController.camYPos = Math.max(0.02, this.movController.camYPos); // prevent going below ground
-
+        this.movController.camYPos = Math.min(80., this.movController.camYPos); // cap max altitude for performance reasons
         this.settings.eyeAttitude = this.movController.camYPos; 
          
 
