@@ -7,6 +7,7 @@ uniform bool bEnableDither; // Toggle for dithering effect
 uniform bool bEnableGrain; // Toggle for film grain effect
 uniform float fGrainWeight;
 
+ 
 
 void main() {
 
