@@ -7,7 +7,7 @@ import { AtmosphereUI } from './uiSkySun';
 import { UniformProxy } from './utils/UniformProxy';
 
 //: Define your control set as a constant or class property
-const CONTROL_KEYS = ['w', 'a', 's', 'd', 'q', 'e', 'r', 'f', '[', ']', "'", '/', ';', '.'];
+const CONTROL_KEYS = ['w', 'a', 's', 'd', 'q', 'e', 'r', 'f', '[', ']', "'", '/', ';', '.','escape'];
 
 
 // Define the shape of your settings for better type safety
@@ -407,8 +407,10 @@ export class RenderSkySun {
  
     //: Sets up global keydown and keyup listeners to track control key states and toggle the help menu with Escape.
     private setupEventListeners(helpMenu: HTMLElement): void {
+    
 
         window.addEventListener('keydown', (e) => {
+       
             const key = e.key.toLowerCase();
             if (CONTROL_KEYS.includes(key) && !this.keysPressed[key]) {
                 this.keysPressed[key] = true;

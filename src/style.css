@@ -220,7 +220,7 @@ button:focus-visible {
   padding-bottom: .66rem;
   border-radius: 12px;
   font-family:  monospace, 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  font-size: .5rem;
+  font-size: .25rem;
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
   z-index: 10;
   pointer-events: none; /* so it doesn’t block mouse/keyboard input */

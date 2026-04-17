@@ -1,6 +1,22 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <style>
+    .char-box {
+      border: 1px solid gray;
+      display: inline-block; /* Aligns boxes horizontally */
+      width: 20px;
+      height: 20px;
+      text-align: center;
+      line-height: 20px; /* Vertically centers text */
+      margin: 0px;
+      margin-bottom:5px;
+      padding: 0px;
+      font-family: monospace;
+      font-size: 10px;
+      font-weight: normal;
+    }
+  </style>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>wolf-sky-sun</title>
@@ -24,18 +40,17 @@
       </div>
       <!-- HELP MENU (existing, just move inside UI layer) -->
       <div id="help-menu-sky" class="help-menu hidden">
-        <h1 style="text-align: center; color: yellow; margin-bottom:0px">SKY CONTROLS</h1>
-        <hr>
+        <h1 style="text-align: center; color: yellow; margin-bottom:20px">CONTROLS</h1>
         <ul>
-          <li><b>A/D</b> — Yaw</li>
-          <li><b>W/S</b> — Pitch</li>
-          <li><b>Q/E</b> — Roll</li>
-          <li><b>🐁</b> — Click & Drag Sun</li>
-          <li><b>Esc</b> — Toggle This Menu</li>
-          <li><b>H</b> — Toggle Stats Panel</li>
-          <li><b>V</b> — Toggle Vignette</li>
-          <li><b>C</b> — Toggle CRT/VHS Effect</li>
-          <li><b>Z</b> — Toggle Chroma Distort</li>
+          <li><span class="char-box">a</span> <span class="char-box">d</span> — Yaw</li>
+          <li><span class="char-box">w</span> <span class="char-box">s</span> — Pitch</li>
+          <li><span class="char-box">q</span> <span class="char-box">e</span>  — Roll</li> 
+          <li><span class="char-box">r</span> <span class="char-box">f</span> — Attitude</li> 
+          <li><span class="char-box">[</span> <span class="char-box">]</span> — Zoom</li> 
+          <li><span class="char-box">'</span> <span class="char-box">/</span>  — Sun Elevation</li>
+          <li><span class="char-box">;</span> <span class="char-box">,</span>  — Aerosol</li> 
+          <li><span class="char-box" style="width:30px; font-size: 8px;">esc</span> — Toggle This Menu</li>
+          <li><span class="char-box">h</span> — Toggle Stats Panel</li> 
         </ul>
       </div>   
     </div>
