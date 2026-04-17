@@ -47,7 +47,10 @@ float getDustTurbulence(vec3 p) {
     //     return 0.0; // No dust if wind is negligible
     // }
 
-    float speed = iTime * 0.057* smoothstep(-0.15, 1.15, fWindIntensity);
+    float factor = 1.0;/// exp(0.05 * fEyeAttitude);/// max(1.0, 2.0*log2(fEyeAttitude));
+
+
+    float speed = iTime * 0.057* smoothstep(-0.15, 1.15, fWindIntensity * factor); // Dust moves slower at higher altitudes, and faster with stronger winds. Adjust parameters as needed.
     float rz = 0.;
     float z = 1.43;
     for (float i=0.; i<3.; i++ ) { // 3 octaves is enough for background dust
