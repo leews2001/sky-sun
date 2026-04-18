@@ -1,6 +1,7 @@
 # Le Vent et le Soleil
-![Local image](./images/title.jpeg)
-Experiment.
+![Local image](./images/banner.jpeg)
+
+Experimenting
 
 ## Installation
 Install all listed dependencies. Runin the project's root directory:
