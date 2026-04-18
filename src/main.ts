@@ -1,6 +1,7 @@
 
 import {animate} from 'animejs';
 import './style.css'
+import { getElement } from './ts/utils/Utils';
 import { RenderSkySun } from './ts/renderSkySun';
 import { VCRNoiseController, ChromaGlitchController , type GlitchLayer, TextGlitcher} from './ts/utils/Vfx';
 
@@ -33,9 +34,9 @@ async function main() {
 
     // 2. Initialize Controllers
     const layers: GlitchLayer = {
-        r: document.querySelector(".layer.r")!,
-        g: document.querySelector(".layer.g")!,
-        b: document.querySelector(".layer.b")!
+        r: getElement<HTMLElement>(".layer.r"),
+        g: getElement<HTMLElement>(".layer.g"),
+        b: getElement<HTMLElement>(".layer.b"),
     };
 
     const visualGlitches = new ChromaGlitchController(layers);
