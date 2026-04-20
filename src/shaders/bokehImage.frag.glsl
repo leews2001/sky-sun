@@ -26,11 +26,13 @@ void main() {
     // would be miles away from the original pixel, making the image disappear. 
     // This scale keeps the blur kernel tightly contained around the center.
 
-    vec2 p = vec2(
-        dot(I + I - r, vec2(3.5,0)*0.0002),0.0);
+    // vec2 p = vec2( dot(I + I - r, vec2(3.5,0)*0.0002),0.0);
 
-    // Iterative sampling
-    for (float i = 1.0; i < 4.0; i += 1.0 / i) {
+    vec2 p = vec2( dot(I + I - r, vec2(1,-5)*0.00002),0.0);
+
+    //: Iterative sampling, 4 samples
+    
+    for (float i = 1.0; i <  4.; i += 1.0 / i) {
 
         // Golden angle rotation matrix approximation
         p *= mat2(
@@ -42,18 +44,16 @@ void main() {
         col4 += texture(iChannel0, I / r + p * i / r);
     }
 
+    //: early return for performance: if both grain and dither are disabled,
+    //: we can skip the noise calculations entirely and just output the averaged color.
 
-
-    // early return for performance: if both grain and dither are disabled,
-    // we can skip the noise calculations entirely and just output the averaged color.
     if ( bEnableGrain == false && bEnableDither == false) {
-        gl_FragColor = col4 * 0.125; // Average the samples
+        gl_FragColor = col4 * 0.125; // Average the samples and half
         return;
     }
 
     //--------- noise
-    vec3 color = col4.rgb * 0.125; // Average the samples
-
+    vec3 color = col4.rgb * 0.125 ; // Average the samples and half
    
     // 1. Get the Blue Noise value
     // We animate the lookup using the paper's logic: 

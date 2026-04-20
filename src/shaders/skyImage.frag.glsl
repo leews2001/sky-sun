@@ -41,9 +41,6 @@ uniform vec3 iChannelResolution[3]; // each channel's resolution (in pixels)
 #include "img-patterns.glsl"
 #include "dust_fog.glsl"
 
-  
-
-
 
 #define SUN_STREAK 0 // 0 = disable sun streaks (performance boost, but less "musk-y")
 //------------- DUST
@@ -322,36 +319,36 @@ vec3 sunWithBloom(vec3 rayDir, vec3 sunDir) {
     // cosine of angle between current ray and sun direction.
     float cosTheta = dot(rayDir, sunDir);
 
-    if (cosTheta > minSunCosTheta) {
-     
-        // Inside sun disk → return pure white light (maximum brightness).
-    
-        if ( bEnableLimbDarken) {
-            float d = 1.0- minSunCosTheta;
-            cosTheta = ( (cosTheta-minSunCosTheta) / d);
 
-            vec3 col = limbDarkeningV3(cosTheta);
-            return 16.*col;
-        }
-        
-        return 16.*vec3( 1.0);
+    // --- 1. Define the AA Edge Width ---
+    // A smaller value means a sharper (but still AA) edge. 
+    // 0.0002 is usually a good starting point for sun disks.
+    float edgeWidth = 0.0000033;
+
+    // --- 2. Calculate the Disk Mask with AA ---
+    // smoothstep(edge0, edge1, x) returns 0 if x <= edge0, 1 if x >= edge1
+    // This creates a smooth 0.0 -> 1.0 transition.
+    float sunMask = smoothstep(minSunCosTheta - edgeWidth, minSunCosTheta, cosTheta);
+
+    vec3 sunColor = vec3(16.0);
+
+    // --- 3. Apply Limb Darkening Logic ---
+    if (bEnableLimbDarken && cosTheta > (minSunCosTheta - edgeWidth)) {
+        float d = 1.0 - minSunCosTheta;
+        // Re-normalize cosTheta for the darkening calculation
+        float normalizedCos = clamp((cosTheta - minSunCosTheta) / d, 0.0, 1.0);
+        sunColor = 16.0 * limbDarkeningV3(normalizedCos);
     }
- 
 
-    //-- Outside sun disk — compute bloom
-
-    // how far outside the sun disk the pixel is (in terms of cosine angle difference).
+    // --- 4. Bloom Logic (Outside the disk) ---
     float offset = minSunCosTheta - cosTheta;
-    
-    // Gaussian-like decay: rapidly fades to zero as offset increases.
-    float gaussianBloom = 0.1*exp(-offset*6600.0);
-    
-    //An inverse-falloff bloom, slower decay than Gaussian.
-    float invBloom = 1.0/(0.02 + offset*300.0*2.5)*0.01;
- 
- 
+    float gaussianBloom = 0.1 * exp(-max(0.0, offset) * 6600.0);
+    float invBloom = 1.0 / (0.02 + max(0.0, offset) * 750.0) * 0.01;
+    vec3 bloomColor = vec3(gaussianBloom + invBloom);
 
-    return vec3(gaussianBloom+invBloom);
+    // --- 5. Combine ---
+    // Use the mask to mix between the disk and the bloom
+    return mix(bloomColor, sunColor, sunMask);
 
 } 
 
@@ -519,6 +516,8 @@ vec2 getAspectUV(vec2 fragCoord) {
 // }
 //------------------------------------------------------------------------------
 
+
+
 void main()
 {
     vec3 rightVector = normalize(uCameraMat[0]); // Right (X)
@@ -551,7 +550,7 @@ void main()
     float elev = sqrt(abs(theta) / (PI * 0.5)) * sign(theta) * 0.5 + 0.5;
 
     vec3 col = texture(iChannel0, vec2(azimuth, elev)).rgb;
- 
+
 
     vec3 sunRGB = vec3(0.0); 
     
@@ -578,51 +577,17 @@ void main()
 
 
             vec3 position = viewPos + intersectionT*normalize(rayDir);
-
-            // vec3 albedo = vec3(0.0, 0.1, 0.0); 
+ 
             vec2 uv = position.xz / ( 200.0* fCheckerboardScale);
-            // uv = vec2(uv.x < 0.0 ? abs(uv.x) + 1.0 : uv.x, uv.y < 0.0 ? abs(uv.y) + 1.0 : uv.y);
-            // if((int(uv.x) % 2 == 0 && int(uv.y) % 2 == 0) || (int(uv.x) % 2 == 1 && int(uv.y) % 2 == 1))
-            // {
-            //     albedo = vec3(1., .1,0.3) * .75;
-            // }
-            
-
-
-            // vec3 opaqueColor = min( albedo, vec3(1.0));
-            // gl_FragColor = vec4(opaqueColor, 1.0);
-
-
-            // // repeat space
-            // vec2 gridUV = fract(uv);
-
-            // // line thickness (adjust this)
-            // float lineWidth = 0.025;
-
-            // // detect lines on X and Y
-            // float lineX = step(gridUV.x, lineWidth) + step(1.0 - gridUV.x, lineWidth);
-            // float lineY = step(gridUV.y, lineWidth) + step(1.0 - gridUV.y, lineWidth);
-
-            // // combine lines
-            // float gridLine = clamp(lineX + lineY, 0.0, 1.0);
-
-            // // colors
-            // vec3 squareColor = vec3(0.3, 0., 0.3);          // black squares
-            // vec3 lineColor   = vec3(0.0, 1.0, 0.0); // green lines
-
-            // vec3 albedo = mix(squareColor, lineColor, gridLine);
-
-            // gl_FragColor = vec4(albedo, 1.0);
+          
+             
 
             //---
             vec2 gridUV = fract(uv);
 
-   
-
             // automatic AA width based on pixel footprint
             // change the multiplier (1.5) for stronger AA (softer lines)
-            vec2 d = fwidth(uv) * 2.0;
-            //d = vec2(0.0015);
+            vec2 d = fwidth(uv) * 2.0; 
             // line thickness in UV space 
             // We scale the line width by the length of 'd' to maintain consistent thickness regardless of zoom level or angle.
             float lineWidth = 0.1 * length(d); 
@@ -640,14 +605,8 @@ void main()
             // colors
             vec3 squareColor = vec3(0.0);            // black
             vec3 lineColor   = vec3(0.0, .8, 0.2)*.66 * (1.-length(d));  // green
-            // vec2 majorUV = fract(uv / 5.0);
-            // vec2 majorDist = min(majorUV, 1.0 - majorUV);
-            // float majorLine = max(
-            //     smoothstep(lineWidth + d.x, lineWidth - d.x, majorDist.x),
-            //     smoothstep(lineWidth + d.y, lineWidth - d.y, majorDist.y)
-            // );
-
-            //vec3 lineColor = mix(vec3(0.0, .33, 0.0), vec3(0.0, .77, .55), majorLine);
+   
+ 
 
             vec3 albedo = mix(squareColor, lineColor, gridLine);
 
@@ -695,10 +654,11 @@ void main()
         }
     }
     
-    if (rayIntersectSphere(viewPos, rayDir, EARTH_RADIUS) < 0.0) 
-    { 
+    if (rayIntersectSphere(viewPos, rayDir, EARTH_RADIUS) < 0.0) {
+        //: shoot into the sky, not earth
+
         if ( bEnableRefract) {
-            // 1. March the GREEN ray (our baseline)
+            // 1. March the GREEN sunray (our baseline)
             vec4 result = getRefractedDirectionWithLift(viewPos, rayDir, 24, bEnableHeatHaze,iTime);
             vec3 rayG = result.xyz;
             
@@ -709,16 +669,26 @@ void main()
             vec3 rayR = normalize(vec3(rayG.x, rayDir.y + liftG * 0.6994, rayG.z));
             vec3 rayB = normalize(vec3(rayG.x, rayDir.y + liftG * 1.09, rayG.z));
 
+            vec3 rayR2 = normalize(vec3(rayG.x, rayDir.y + liftG * 0.6994*.67, rayG.z));
+            vec3 rayB2 = normalize(vec3(rayG.x, rayDir.y + liftG * 1.09*.67, rayG.z));
+            vec3 rayG2 = normalize(vec3(rayG.x, rayDir.y + liftG *.67, rayG.z));
+
+
             // 3. Sample the sun disc for each channel
             float sunR = sunWithBloom(rayR, sunDir).r;
             float sunG = sunWithBloom(rayG, sunDir).g;
             float sunB = sunWithBloom(rayB, sunDir).b;
-
+ 
+            float sunR2 = sunWithBloom(rayR2, sunDir).r;
+            float sunG2 = sunWithBloom(rayG2, sunDir).g;
+            float sunB2 = sunWithBloom(rayB2, sunDir).b;
 
             // 4. Combine and Apply Scattering
             // Note: scattering hits Blue harder, so Blue might naturally disappear
-            vec3 sunLum = vec3(sunR, sunG, sunB);
+            vec3 sunLum = vec3(sunR, sunG, sunB) + vec3( sunR2, sunG2, sunB2);
+            sunLum *=0.5; 
 
+            
             srgb_transmittance_to_sun.r = max(srgb_transmittance_to_sun.r, 0.5 / max(1.0, fAerosolTurbidity));
             sunLum *= srgb_transmittance_to_sun; 
             col += sunLum;
