@@ -451,7 +451,7 @@ export class RenderSkySun {
         const dFov = (this.keysPressed["]"] ? 1 : 0) - (this.keysPressed["["] ? 1 : 0);
 
         this.movController.camFOV += dFov * 20.0 * dt;
-        this.movController.camFOV = Math.min(170.0, Math.max(5.0, this.movController.camFOV)); // clamp FOV
+        this.movController.camFOV = Math.min(170.0, Math.max(3.0, this.movController.camFOV)); // clamp FOV
         this.settings.camFov = this.movController.camFOV;
 
         //: For altitude changes, we apply a non-linear step based on the current altitude 

@@ -167,7 +167,7 @@ export class AtmosphereUI {
 
         this.guiCtrl.addControl(cam, this.settings, 'camFov', {
             label: ' ▪ fOV',
-            min: 5,
+            min: 3,
             max: 170,
             step: 0.5,
             decimals: 1,

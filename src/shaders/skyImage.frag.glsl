@@ -67,136 +67,11 @@ uniform vec3 iChannelResolution[3]; // each channel's resolution (in pixels)
 // }
  
 
- 
-
-// float getTemperatureGradient(float alt) {
-//     // 1. Standard Lapse Rate (K/m)
-//     float standardLapseRate = -0.0065; 
-
-//     // 2. Mirage Parameters
-//     // For Omega Sun (Inferior): surfaceTemp > airTemp  
-//     // For Superior Mirage: surfaceTemp < airTemp  
-//     float surfaceTemp = 280.0; // Warm surface (Kelvin)
-//     float airTemp = 300.0;     // Ambient air
-//     float scaleHeight = 30.0;   // Mirage layer thickness (meters)
-
-//     float deltaT = surfaceTemp - airTemp;
-//     // Sharp exponential spike near the ground for mirages
-//     float mirageGrad = -(1.0 / scaleHeight) * deltaT * exp(-alt / scaleHeight);
-    
-//     return mirageGrad + standardLapseRate;
-// }
- 
-
-// float getRefractionGradient(float alt, float kFactor) {
-   
-//     // Basic atmosphere constants
-//     float T = 288.0 - 0.0065 * alt; // Simplified T
-//     float P = 101325.0 * exp(-alt / 8400.0); 
-//     // Adjust n_minus_1 by the wavelength factor
-//     float n_minus_1 = (0.000226 * kFactor) * (P / T);
-
-//     // Young's formula: dn/dh = -(n-1) * (g/RT + (1/T)*(dT/dh))
-//     float gravityTerm = 0.0342 / T; 
-//     float tempTerm = getTemperatureGradient(alt) / T;
-    
-//     return -n_minus_1 * (gravityTerm + tempTerm);
-// }
-// /**
-//  * This function "bends" the ray. Note that we only care about 
-//  * the final direction the ray points when it exits the atmosphere, 
-//  * as that is what determines which part of the sun or sky you are seeing.
-//  *
-//  * Computes the refracted ray direction due to atmospheric refraction.
-//  * Implements a simple ray marching approach to bend the ray according to
-//  * the refractive index gradient.
-//  *
-//  * @param viewPos The starting position of the ray (camera position).
-//  * @param initialDir The initial direction of the ray.
-//  * @return The refracted ray direction.
-//  */
- 
-// vec4 getRefractedDirectionWithLift(vec3 viewPos, vec3 initialDir, int max_steps) {
-
-//     float alt = viewPos.y - EARTH_RADIUS; // km
-
-
-//     // 1. Calculate the sine of the angle to the geometric horizon
-//     // This accounts for the 'dip' if the camera is high up.
-//     //float horizonSin = -sqrt(max(0.0, 2.0 * (1000.*EARTH_RADIUS)* (1000.*alt) + 1000.0*(alt * alt))) / (1000.0 * (EARTH_RADIUS + alt));
-    
- 
-//     // 2. Define a 'Refraction Window' 
-//     // We only care about rays near the horizon or pointing at the ground.
-//     // radians(3.0) is about 0.05. We add this to the horizon angle.
-//     //float upperThreshold = horizonSin + 0.05; 
-    
-//     // If the ray is pointing well above the horizon 'haze', skip the march.
-//     //if (initialDir.y > upperThreshold * .001) {
-//      //  return initialDir;
-//    // }
-
-//     vec3 currPos = viewPos;
-//     vec3 currDir = initialDir;
-//     float stepSize = 1.0; // Start with 1 meter steps for mirages
-
-//     float jitter_wgt = bEnableHeatHaze ? 1.:0.;
-
-//     for (int i = 0; i <max_steps; i++) {
-//         alt = length(currPos) - EARTH_RADIUS; // km
-//         alt = alt * 1000.0; // convert to meters
-
-//         // Stop if we hit the ground or exit the atmosphere
-//         if (alt < -10.0 || alt > 6000.) break;
-
-
-//         // 2. ADD TURBULENCE
-//         // Scale turbulence by an exponential fade so it's only near the surface
-//         float turbulenceFade = 0.5*exp(-alt / 1250.); 
-//         turbulenceFade = min(.15, 250. / (alt + 1.0)); // Avoid division by zero
-
-//         // Sample noise for Horizontal (X) and Vertical (Y) jitter
-//         // We use 'currPos' so the noise is "pinned" to the world
-//         vec2 n;
- 
-//         n.x = 0.2*fbm(currPos * 1.0 + iTime * 4.1)-0.2; 
-//         n.y = fbm(currPos * 1.014 - iTime * 1.3)* 2.0 - 2.;
-    
-
-//         // Apply strength 
-//         vec2 jitter = 0.25 * n * turbulenceFade;
-         
-//         jitter.y = .5* jitter.y; // Only allow upward jitter to simulate "lift"
-//         jitter = jitter_wgt* jitter;
-
-//         // Instead of adding a random vec3, we create a 'turbulent' up vector
-//         vec3 up = normalize(currPos);
-//         vec3 right = normalize(cross(up, currDir));
-//         vec3 perturbedUp = normalize(up + right *32.*jitter.x + cross(right, up) *64.*jitter.y);
-
-//         // Use this perturbedUp for your refraction calculation
-//         float dn_dh = getRefractionGradient(alt, 1.0);
-//         vec3 gradN = perturbedUp * dn_dh; 
-
-//         // Now calculate bending as before
-//         vec3 bendDir = gradN - dot(gradN, currDir) * currDir; 
-        
-//         // 3. Combined Bending Force
- 
-
-//         currDir += bendDir * stepSize;
-//         currDir = normalize(currDir);
-        
-//         // Move along the curved path
-//         currPos += currDir * stepSize;
-        
-//         // Exponentially increase step size to cover the whole atmosphere
-//         stepSize *= 1.15; 
-//     }
-//     // The "Lift" is essentially the difference in the Y (vertical) component
-//     float totalLift = currDir.y - initialDir.y;
-//     return vec4(currDir, totalLift);
-// }
+ vec3 hash33(vec3 p) {
+	p = fract(p * vec3(.1031, .1030, .1032));
+    p += dot(p, p.yxz + 33.33);
+    return fract((p.xxy + p.yxx) * p.zyx);
+}
  
 
 /**
@@ -654,24 +529,55 @@ void main()
         }
     }
     
+    //----------------------------
+    // DUST
+
+    FogResult dust2 = FogResult(vec3(0.0), vec3(1.0));
+
+    if ( bEnableDust) {
+        //col = dust_fog(col, viewPos, normalize(rayDir), 1000., sunDir);
+        // We calculate the dust properties along the view ray
+        dust2 = dust_fog2(viewPos, normalize(rayDir), 1000.0);
+
+    }
+
+
+    //: --- Draw the Sun and Sky -------------------------------------------
+
     if (rayIntersectSphere(viewPos, rayDir, EARTH_RADIUS) < 0.0) {
         //: shoot into the sky, not earth
 
         if ( bEnableRefract) {
+
+            vec3 jitteredDir = rayDir;
+            {
+                    // Inside your main sky/sun loop
+                    //vec3 baseDir = rayDir; // The original ray from your camera setup
+
+                    // 1. Calculate a tiny screen-space nudge 
+                    // We use gl_FragCoord so the jitter is different for every pixel
+                    vec3 jitter = hash33(vec3(gl_FragCoord.xy, iTime)) - 0.5;
+
+                    // 2. The scale of the nudge should be proportional to your pixel size
+                    // This is the "secret sauce" for AA. 
+                    // At small FOV, the angular size of a pixel is tiny.
+                    float pixelAngularSize = length(fwidth(rayDir)); 
+                    jitteredDir = normalize(rayDir + jitter * pixelAngularSize * .66);
+             }
+
             // 1. March the GREEN sunray (our baseline)
-            vec4 result = getRefractedDirectionWithLift(viewPos, rayDir, 24, bEnableHeatHaze,iTime);
+            // vec4 result = getRefractedDirectionWithLift(viewPos, rayDir, 20, bEnableHeatHaze,iTime);
+
+            vec4 result = getRefractedDirectionWithLift(viewPos, jitteredDir, 20, bEnableHeatHaze,iTime);
+
             vec3 rayG = result.xyz;
             
             float liftG = result.w;
 
-            // 2. Derive Red and Blue rays by adjusting the lift
-            // We modify the Y component and re-normalize
+            //: 2. Derive Red and Blue rays by adjusting the lift
+            //: We modify the Y component and re-normalize
             vec3 rayR = normalize(vec3(rayG.x, rayDir.y + liftG * 0.6994, rayG.z));
             vec3 rayB = normalize(vec3(rayG.x, rayDir.y + liftG * 1.09, rayG.z));
-
-            vec3 rayR2 = normalize(vec3(rayG.x, rayDir.y + liftG * 0.6994*.67, rayG.z));
-            vec3 rayB2 = normalize(vec3(rayG.x, rayDir.y + liftG * 1.09*.67, rayG.z));
-            vec3 rayG2 = normalize(vec3(rayG.x, rayDir.y + liftG *.67, rayG.z));
 
 
             // 3. Sample the sun disc for each channel
@@ -679,33 +585,55 @@ void main()
             float sunG = sunWithBloom(rayG, sunDir).g;
             float sunB = sunWithBloom(rayB, sunDir).b;
  
-            float sunR2 = sunWithBloom(rayR2, sunDir).r;
-            float sunG2 = sunWithBloom(rayG2, sunDir).g;
-            float sunB2 = sunWithBloom(rayB2, sunDir).b;
-
+    
             // 4. Combine and Apply Scattering
             // Note: scattering hits Blue harder, so Blue might naturally disappear
-            vec3 sunLum = vec3(sunR, sunG, sunB) + vec3( sunR2, sunG2, sunB2);
-            sunLum *=0.5; 
+            vec3 sunLum = vec3(sunR, sunG, sunB);// vec3( sunR2, sunG2, sunB2); sunLum *=0.5; 
 
+            // --- APPLY DUST TO SUN ---
+            // Multiply the sun brightness by the dust's transmission
+            // This will dim the sun and turn it red/orange
+            //sunLum *= dust2.transmission; 
+            //--------
             
-            srgb_transmittance_to_sun.r = max(srgb_transmittance_to_sun.r, 0.5 / max(1.0, fAerosolTurbidity));
-            sunLum *= srgb_transmittance_to_sun; 
+            //srgb_transmittance_to_sun.r = max(srgb_transmittance_to_sun.r, 0.5 / max(1.0, fAerosolTurbidity));
+            sunLum *= srgb_transmittance_to_sun;
+
+            sunLum *= dust2.transmission; 
+            
             col += sunLum;
+            
+            //col = sunLum;
         } else {
             vec3 sunLum = sunWithBloom(rayDir, sunDir);
             srgb_transmittance_to_sun.r = max(srgb_transmittance_to_sun.r, 0.5 / max(1.0, fAerosolTurbidity));
             sunLum *= srgb_transmittance_to_sun; 
+
             col += sunLum;
         }
         
     }
 
-    //----------------------------
-    // DUST
+    // //----------------------------
+    // // DUST
+
+    // FogResult dust2 = FogResult(vec3(0.0), vec3(1.0));
 
     if ( bEnableDust) {
         col = dust_fog(col, viewPos, normalize(rayDir), 1000., sunDir);
+        // We calculate the dust properties along the view ray
+        //dust2 = dust_fog2(viewPos, normalize(rayDir), 1000.0);
+
+    }
+
+    // --- APPLY DUST GLOW ---
+    // Finally, add the light scattered BY the dust on top
+    if (bEnableDust) {
+        //col =   0.5* (  col+ dust2.color);
+        //col += dust2.color;
+        //col *= dust2.transmission;
+        //col = dust_fog(col, viewPos, normalize(rayDir), 1000., sunDir);
+        //col = 0.25dust2.transmission;
     }
 
  
