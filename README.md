@@ -37,6 +37,7 @@ Back in the 90s, we were coding MOV AX, 13h and fighting over 640KB of base memo
 So for this homecoming, i am currently working under the banner "wolf's workshop".
 
 ![Local image](./images/scrn_01.jpeg)
+
 [*The lens dirt, the flare*]
 
 ## Some Technical (I will document the details elsewhere, some other time)
@@ -56,6 +57,7 @@ This engine is built on the philosophy that if you aren't fighting with the math
 <br>
 
 ![Local image](./images/scrn_03.jpeg)
+
 [*The sun and the dust*]
 
 <br><br>
@@ -63,6 +65,7 @@ This engine is built on the philosophy that if you aren't fighting with the math
 <br>
 
 ![Local image](./images/scrn_02.jpeg)
+
 [*the cosmic horror*]
 
 ## Future: The Colossus & The Call of Cthulhu
@@ -75,9 +78,8 @@ The sky is just the beginning. I am currently working to "expand" the horizon.
 ## Standing on the Shoulders of Giants
 While the demoscene taught me the foundations, I am learning a massive amount of new "modern tricks" from the talented wizards over at Shadertoy.
 
-```
-Note: Full attributions to the specific Shadertoy authors whose techniques (Atmospheric scattering models, Bokeh kernels, and Dithering logic) have informed this project will be added as the engine hits its 50% milestone.
-```
+> Note: Full attributions to the specific Shadertoy authors whose techniques (Atmospheric > scattering models, Bokeh kernels, and Dithering logic) have informed this project will > be added as the engine hits its 50% milestone.
+
 
 ## Mode XIX // Mutante
 *The silicon is different, but the code is still raw.*
