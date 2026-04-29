@@ -15,7 +15,7 @@ They say you can't go home again, but in the scene, we just wait for the hardwar
 
 This project is my candid "retour d'âge"—a mid-life "relapse" into the world of pure graphics. After decades in the deep end of C++ system architecture and academic R&D, I’ve taken this career pivot to reclaim my roots in the demogroup, Mode XIX and Mutante.
 ```
-Mode XIX (1993-1996)
+Mode XIX (active 1992-1996, 1996++ hiatus)
                             d8b                       d8,                 
                            d88                                    
   88bd8b,d88b  d8888b  d888888   d8888b    ?88,  88P  88b?88,  88P
