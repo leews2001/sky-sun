@@ -79,6 +79,12 @@ The sky is just the beginning. I am currently working to "expand" the horizon.
 
 - Generative Audio: What is demoscene without sound and music? The roaring wind and creature "calls" will be synthesized (via web audio api??). Low-frequency rumbles and resonant filters that make the scene feel as massive.
 
+<br>
+
+![Local image](./images/scrn_04.jpeg)
+
+[*prototype tentacles*]
+
 ## Standing on the Shoulders of Giants
 While the demoscene taught me the foundations, I am learning a massive amount of new "modern tricks" from the talented wizards over at Shadertoy.
 
