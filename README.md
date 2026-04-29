@@ -4,6 +4,8 @@
 
 [*Serious tone*] This is a realtime atmospheric renderer exploring physically based light transport and cinematic post-processing. This project demonstrates the integration of computational physics (Rayleigh/Mie scattering) with modern web performance engineering (GPGPU-style LUT precomputation).
 
+[![Sample](./images/scrn_cap_2_thumb.jpeg)](./images/scrn_cap_2.mp4)
+
 <html>
 <video src="./images/scrn_cap_2.mp4" controls muted style="width:50%;" poster="./images/scrn_cap_2_thumb.jpeg"></video>
 </html>
