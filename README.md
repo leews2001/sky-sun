@@ -1,3 +1,6 @@
+>⚠️ Work-in-Progress (WIP): This repo is a personal "retour d'âge" laboratory. The code is currently in a "research and discovery" phase — expect messy shaders, unrefactored modules, and experimental logic as I tinker with algorithms and toolchains.
+
+
 # Le Vent et le Soleil (working title)
 ### *A Physically-based Atmospheric Simulation Demo that is indefinitely work-in-progress*
 ![Local image](./images/banner.jpeg)
