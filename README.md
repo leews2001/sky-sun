@@ -38,7 +38,7 @@ Mutatnte (1996-1998)
 ```
 Back in the 90s, we were coding MOV AX, 13h and fighting over 640KB of base memory. Today, the canvas is the browser, the assembly is GLSL, and the toolchain is TypeScript + Vite. This isn't just a portfolio piece; it's a stubborn veteran coder bridging the gap between old-school "hard-to-the-metal" logic and modern GPU-driven artistry.
 
-So for this homecoming, i am currently working under the banner "wolf's workshop".
+So for this homecoming, i am currently working under the banner "wolf's workshop". The premise of this demo is to explore the visual and soundscape idea of **liminal landscape**
 
 ![Local image](./images/scrn_01.jpeg)
 
