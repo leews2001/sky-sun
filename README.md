@@ -89,7 +89,7 @@ The sky is just the beginning. I am currently working to "expand" the horizon.
 ## Standing on the Shoulders of Giants
 While the demoscene taught me the foundations, I am learning a massive amount of new "modern tricks" from the talented wizards over at Shadertoy.
 
-> Note: Full attributions to the specific Shadertoy authors whose techniques (Atmospheric > scattering models, Bokeh kernels, and Dithering logic) have informed this project will > be added as the engine hits its 50% milestone.
+> Note: I owe my learning and knowlege to many talented shadertoy authors. References and attributes to the authorss will be added as this demo work progress.
 
 
 ## Mode XIX // Mutante
